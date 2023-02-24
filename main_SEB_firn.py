@@ -7,25 +7,28 @@ tip list:
     %matplotlib qt
     import pdb; pdb.set_trace()
 """
-import pandas as pd
-import numpy as np
-import os
-import json
-
-import lib_initialization as ini
-import lib_seb_smb_model as seb
-import lib_io as io
-
 import __init__
 
-def run_SEB_firn():
-    # Create struct c with all constant values
-    c = setConstants()
+import pandas as pd
+import numpy as np
+from os import mkdir
+from json import load
 
-    with open("parameters.json") as parameter_file:
-        parameters = json.load(parameter_file)
+import lib_io as io
+from lib_initialization import ImportConst, load_json
+from lib_seb_smb_model import HHsubsurf
+
+
+def run_SEB_firn():
+    # Read paths for weather input and output file
+    parameters = load_json()
     output_path = str(parameters['output_path'])
-    weather_data_input_path = str(parameters['weather_data']['weather_input_path'])
+    weather_station = str(parameters['weather_station'])
+    weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
+    weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
+
+    # Create struct c with all constant values
+    c = set_constants(weather_station)
 
     # DataFrame with the weather data is created
     df_aws = io.load_promice(weather_data_input_path)[:6000]
@@ -64,7 +67,7 @@ def run_SEB_firn():
         dH_comp,
         snowbkt,
         compaction,
-    ) = seb.HHsubsurf(df_aws, c)
+    ) = HHsubsurf(df_aws, c)
 
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
     depth_act = np.cumsum(thickness_act, 0)
@@ -76,7 +79,7 @@ def run_SEB_firn():
     succeeded = 0
     while succeeded == 0:
         try:
-            os.mkdir(output_path + c.RunName)
+            mkdir(output_path + c.RunName)
             succeeded = 1
         except:
             if i == 0:
@@ -98,15 +101,14 @@ def run_SEB_firn():
     # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_aws.index, RunName)
     # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_aws.index, RunName)
 
-   
 # Constant definition
 # All constant values are defined in a set of csv file in the Input folder.
 # They can be modiefied there or by giving new values in the "param" variable. 
 # The values of the constant given in param will overright the ones extracted 
 # from the csv files. The fieldnames in param should be the same as is c.
-def setConstants():
-    c = ini.ImportConst("parameters.json")
-    c.station = "KAN_M"
+def set_constants(weather_station):
+    c = ImportConst()
+    c.station = weather_station
     c.elev = 2000
     c.rh2oice = c.rho_water / c.rho_ice
     c.zdtime = 3600
@@ -124,7 +126,6 @@ def setConstants():
     c.dz_ice = 1
     c.z_ice_max = 50
     c.dt_obs = 3600   
-    c.kappa = np.float64(c.kappa)
     return c 
 
 

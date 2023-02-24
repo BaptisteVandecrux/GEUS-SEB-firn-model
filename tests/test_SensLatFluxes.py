@@ -4,9 +4,10 @@ import pandas as pd
 import json
 import numpy as np
 
-from main_SEB_firn import setConstants
+from main_SEB_firn import set_constants
 from lib_seb_smb_model import SensLatFluxes_bulk_old, SensLatFluxes_bulk_opt, HHsubsurf, SmoothSurf_opt
 import lib_io as io
+from lib_initialization import load_json
 
 class SensLatFluxesTestCase(unittest.TestCase):
     '''Test the SensLatFluxes_bulk function'''
@@ -29,7 +30,7 @@ class SensLatFluxesTestCase(unittest.TestCase):
         z_T = [2.4995, 1.858]
         z_RH = [2.4995, 1.858]
         z_0 = [0.0013, 0.0013]
-        c = setConstants()
+        c = set_constants("KAN_U")
        
         L = [0,0]
         LHF = [0,0]
@@ -125,25 +126,28 @@ class SensLatFluxesTestCase(unittest.TestCase):
     #     z_T = 2.4995
     #     z_RH = 2.4995
     #     z_0 = 0.0013
-    #     c = setConstants()
+    #     c = set_constants()
 
         #res = SmoothSurf_opt(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
         #res2 = SmoothSurf_opt_2(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
 
 
 def writeArray():
-    arr = [31.15625, 31.5625, 31.53125, 31.328125, 31.609375, 31.5, 31.40625, 31.484375, 31.34375, 31.359375]
+    arr = []
     for i in range(len(arr)):
         print(arr[i])
 
 def writeOutput():
         '''Test and compare output from SensLatFluxes with old code output'''
-        c = setConstants()
+        # with open("parameters.json") as parameter_file:
+        #     parameters = json.load(parameter_file)
+        parameters = load_json()
+        weather_station = str(parameters['weather_station'])
+        weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
+        weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
 
-        with open("parameters.json") as parameter_file:
-            parameters = json.load(parameter_file)
+        c = set_constants(weather_station)
 
-        weather_data_input_path = str(parameters['weather_data']['weather_input_path'])
         df_aws = io.load_promice(weather_data_input_path)[:6000]
         df_aws = df_aws.set_index("time").resample("H").mean()
 
@@ -193,19 +197,18 @@ def writeOutput():
         new_Re = pd.DataFrame(Re)
         
         # Write results from SensLatFluxes_bulk to one csv file
-        # new_data = new_L
-        # new_data = new_data.assign(new_LHF = new_LHF)
-        # new_data = new_data.assign(new_SHF = new_SHF)
-        # new_data = new_data.assign(new_theta_2m = new_theta_2m)
-        # new_data = new_data.assign(new_q_2m = new_q_2m)
-        # new_data = new_data.assign(new_ws_10m = new_ws_10m)
-        # new_data = new_data.assign(new_Re = new_Re)
+        new_data = new_L
+        new_data = new_data.assign(new_LHF = new_LHF)
+        new_data = new_data.assign(new_SHF = new_SHF)
+        new_data = new_data.assign(new_theta_2m = new_theta_2m)
+        new_data = new_data.assign(new_q_2m = new_q_2m)
+        new_data = new_data.assign(new_ws_10m = new_ws_10m)
+        new_data = new_data.assign(new_Re = new_Re)
 
-        # filename = 'res_SensLatFlux.csv'
+        # filename = 'res_SensLatFlux_KAN_U.csv'
         # pd.DataFrame(new_data).to_csv(filename)
 
         # print("End of comparision.")
-
 
         #Print differences between old output to newly computed output
         print("Old L:")

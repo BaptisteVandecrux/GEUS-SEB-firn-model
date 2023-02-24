@@ -6,10 +6,11 @@
 #     attr2 = "dog"
 
 #     # A sample method
+
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import json
+#import matplotlib.pyplot as plt
+from json import load
 
 class Struct:
     def __init__(self, **entries):
@@ -18,7 +19,6 @@ class Struct:
     def disp(self):
         for property, value in vars(self).items():
             print(property, ":", value)
-
 
 def IniVar(time, c):
     df_ini = InitializationSubsurface(c)
@@ -70,8 +70,15 @@ def IniVar(time, c):
         snowbkt,
     )
 
+# Load parameters and paths from json-file
+# Change in parameters.json if using different path or weather station
+# Returns dictionary with pathnames
+def load_json():
+    with open("parameters.json") as parameter_file:
+        parameters = load(parameter_file)
+    return parameters
 
-def ImportConst(json_path: str,ElevGrad:float=0.1):
+def ImportConst(ElevGrad:float=0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
     # user-defined parameters from a set of csv files located in the ./Input
     # folder. It stores all of them in the c structure that is then passed to
@@ -81,12 +88,9 @@ def ImportConst(json_path: str,ElevGrad:float=0.1):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
 
-    #Fredrika:
-    with open(json_path) as parameter_file:
-        parameters = json.load(parameter_file)
-
+    # Read path for constants inputs
+    parameters = load_json()
     constants_dict = parameters['constants']
-
     const_py_path, const_sim_path, const_subsurf_path = (
         constants_dict['const_py']['path'], 
         constants_dict['const_sim']['path'], 
@@ -124,15 +128,14 @@ def InitializationSubsurface(
     # - density profile
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
+  
+    # Read path for initial state inputs
+    parameters = load_json()
+    initial_state_dict = parameters['initial_state']
+    initial_state_path =  initial_state_dict['initial_state_folder_path']
 
     # Initial density profile
-    
-    filename = "./Input/Initial state/" + c.station + "_initial_density.csv"
-    #Fredrika
-    #läs in och implementera json
-    #filename = initial_state_path + c.station + "_initial_density.csv"
-    #initial_state_dict = parameters['initial_state']
-    #initial_state_path =  initial_state_dict['initial_state_folder_path']
+    filename = initial_state_path + c.station + "_initial_density.csv"
 
     df_ini_dens = pd.read_csv(filename, sep=";")
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
@@ -223,8 +226,8 @@ def InitializationSubsurface(
     df_mod["snic"] = 0
 
     # Initial temperature profile
-    filename = "./Input/Initial state/" + c.station + "_initial_temperature.csv"
-    # filename = '.\Input\Initial state\initial_temperature_IMAU_aws4.csv'
+    filename = initial_state_path + c.station + "_initial_temperature.csv"
+
     df_ini_temp = pd.read_csv(filename, sep=";")
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m >= 0, :]
     # df_ini_temp = df_ini_temp.loc[df_ini_temp.temperature_degC.notnull(),:]
@@ -244,8 +247,9 @@ def InitializationSubsurface(
     df_mod["temp_degC"] = df_mod["temp_degC"].fillna(method="bfill").values + c.T_0
 
     # Initial grain size
-    filename = "./Input/Initial state/all_sites_initial_grain_size.csv"
-    # filename = '.\Input\Initial state\initial_grain_size_IMAU_aws4.csv'
+    grain_size_path = initial_state_dict['grain_size_path']
+    filename = initial_state_path + grain_size_path
+
     df_ini_gs = pd.read_csv(filename, sep=";")
     df_ini_gs = df_ini_gs.set_index("depth_m")
 
