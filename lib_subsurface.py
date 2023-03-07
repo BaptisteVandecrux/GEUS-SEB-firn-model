@@ -1092,9 +1092,19 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc: np.ndarray, zso_cond
 
     # Make as much SI as there is water available in the layer above the ice [jk]
     
-   
-    #if pslwc[nextisfrozen == 1].shape != potSIform.shape:
-     #   print("not same shape")
+    # Code for debugging:
+    # if pslwc[nextisfrozen == 1].shape != potSIform.shape:
+    #    print("not same shape")
+    #    print(len(pslwc[nextisfrozen == 1]))
+    #    print(len(potSIform))
+    #    if len(pslwc[nextisfrozen == 1]) == len(potSIform) - 1:
+    #        print("1")
+    #        print(pslwc[nextisfrozen == 1])
+    #        print("2")
+    #        print(potSIform)
+
+    #        np.append(pslwc[nextisfrozen == 1], [0])
+    #        print(pslwc[nextisfrozen == 1].shape, potSIform.shape)
     
     SIform = np.minimum(pslwc[nextisfrozen == 1], potSIform)
     zsupimp = np.zeros_like(pslwc)

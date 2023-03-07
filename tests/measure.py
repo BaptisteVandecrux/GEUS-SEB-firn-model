@@ -7,7 +7,7 @@ import numpy as np
 def run_measure():
     time_array = []
 
-    for i in range(10):
+    for i in range(30):
         # Run test, keep going if error
         try:
             cpu_start_time = time.process_time()

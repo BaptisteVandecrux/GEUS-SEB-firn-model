@@ -7,17 +7,15 @@ tip list:
     %matplotlib qt
     import pdb; pdb.set_trace()
 """
-import __init__
-
-import pandas as pd
-import numpy as np
-from os import mkdir
-from json import load
-
+#import __init__
 import lib_io as io
+import lib_plot as lpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from lib_initialization import ImportConst, load_json
 from lib_seb_smb_model import HHsubsurf
-
+from os import mkdir
 
 def run_SEB_firn():
     # Read paths for weather input and output file
@@ -31,7 +29,7 @@ def run_SEB_firn():
     c = set_constants(weather_station)
 
     # DataFrame with the weather data is created
-    df_aws = io.load_promice(weather_data_input_path)[:6000]
+    df_aws = io.load_promice(weather_data_input_path)[:5999]
     df_aws = df_aws.set_index("time").resample("H").mean()
 
     # DataFrame for the surface is created, indexed with time from df_aws
@@ -87,19 +85,28 @@ def run_SEB_firn():
             else:
                 c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
             i = i + 1
+    
     c.OutputFolder = output_path
-
     # io.write_2d_netcdf(snowc, 'snowc', depth_act, df_aws.index, c)
     # io.write_2d_netcdf(snic, 'snic', depth_act, df_aws.index, c)
-    # io.write_2d_netcdf(slwc, 'slwc', depth_act, df_aws.index, c)
-    io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_aws.index, c)
-    # io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_aws.index, c)
+    io.write_2d_netcdf(slwc, 'slwc', depth_act, df_aws.index, c)
+    #io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_aws.index, c)
     io.write_1d_netcdf(df_surface, c)
-    # io.write_2d_netcdf(tsoil, 'T_ice', depth_act, df_aws.index, c)
+    io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_aws.index, c)
+    io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_aws.index, c)
     # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, df_aws.index, RunName)
     # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_aws.index, RunName)
     # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_aws.index, RunName)
     # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_aws.index, RunName)
+
+    # Plot output
+    plt.close("all")
+    lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+    lpl.plot_summary(df_surface, c, 'SEB_output')
+    lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
+    lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
+    lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+
 
 # Constant definition
 # All constant values are defined in a set of csv file in the Input folder.
@@ -129,15 +136,8 @@ def set_constants(weather_station):
     return c 
 
 
-#run_SEB_firn()
+run_SEB_firn()
 
 
-    #%% Plot output
-    #import lib_plot as lpl
-    #import matplotlib.pyplot as plt
-
-    #plt.close("all")
-    # lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
-    # lpl.plot_summary(df_surface, c, 'SEB_output')
-    #lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+    
 

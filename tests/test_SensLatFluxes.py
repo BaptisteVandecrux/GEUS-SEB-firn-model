@@ -148,7 +148,7 @@ def writeOutput():
 
         c = set_constants(weather_station)
 
-        df_aws = io.load_promice(weather_data_input_path)[:6000]
+        df_aws = io.load_promice(weather_data_input_path)[:5999]
         df_aws = df_aws.set_index("time").resample("H").mean()
 
         # Call HHsubsurf, which gets L, LHF, SHF, theta_2m, q_2m, ws_10m and Re from SensLatFluxes
@@ -247,7 +247,7 @@ def writeOutput():
         print(new_Re)
 
 
-#writeOutput()
+writeOutput()
 
 #writeArray()
 
