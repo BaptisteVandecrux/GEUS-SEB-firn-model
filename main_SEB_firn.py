@@ -87,7 +87,6 @@ def run_SEB_firn():
             i = i + 1
     
     c.OutputFolder = output_path
-    # io.write_2d_netcdf(snowc, 'snowc', depth_act, df_aws.index, c)
     # io.write_2d_netcdf(snic, 'snic', depth_act, df_aws.index, c)
     io.write_2d_netcdf(slwc, 'slwc', depth_act, df_aws.index, c)
     #io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_aws.index, c)
@@ -100,12 +99,13 @@ def run_SEB_firn():
     # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_aws.index, RunName)
 
     # Plot output
-    plt.close("all")
-    lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
-    lpl.plot_summary(df_surface, c, 'SEB_output')
-    lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
-    lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
-    lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+    # plt.close("all")
+    # lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+    # lpl.plot_summary(df_surface, c, 'SEB_output')
+    # lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
+    # lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
+    # lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+
 
 
 # Constant definition
@@ -124,6 +124,7 @@ def set_constants(weather_station):
     c.dz_ice = 1
     NumLayer = int(c.z_max / c.dz_ice)
     c.num_lay = NumLayer
+    #c.num_lay = 200
     c.verbose = 1
     c.Tdeep = 250.15
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;

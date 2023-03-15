@@ -7,7 +7,7 @@ import numpy as np
 def run_measure():
     time_array = []
 
-    for i in range(30):
+    for i in range(10):
         # Run test, keep going if error
         try:
             cpu_start_time = time.process_time()
@@ -16,8 +16,8 @@ def run_measure():
             cpu_time = (cpu_end_time - cpu_start_time)
             time_array.append(cpu_time)
             print(time_array)
-        except:
-            print ("error "+str(IOError))
+        except Exception as e:
+            print (e)
             pass
 
         # Run test, breaks if error
@@ -28,12 +28,12 @@ def run_measure():
         # time_array.append(cpu_time)
         # print(time_array)
 
-    for i in range(len(time_array)):
-        print(time_array[i])
+    # for i in range(len(time_array)):
+    #     print(time_array[i])
 
-    print(time_array)
-    print("Mean:")
-    print(str(np.mean(time_array)))
+    # print(time_array)
+    # print("Mean:")
+    # print(str(np.mean(time_array)))
 
 def measure_SensLatFluxes():
     '''Measure time diff between optimized and not optimized SensLatFluxes,

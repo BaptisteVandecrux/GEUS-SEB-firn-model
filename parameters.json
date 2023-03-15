@@ -1,5 +1,5 @@
 {
-    "weather_station" : "KAN_M",
+    "weather_station" : "KAN_U",
 
     "constants":{
         "const_py":{
@@ -10,6 +10,9 @@
         },
         "const_subsurf": {
             "path": "Input/Constants/const_subsurf.csv"     
+        },
+        "station_info": {
+            "path": "Input/Constants/StationInfo.csv"     
         }
     },
 

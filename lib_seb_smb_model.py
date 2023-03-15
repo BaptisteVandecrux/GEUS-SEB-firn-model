@@ -1,5 +1,5 @@
 import numpy as np
-from pandas import DataFrame
+import pandas as pd
 from numba import njit
 
 #import lib_initialization as ini
@@ -61,8 +61,7 @@ from progressbar import progressbar
 # possible to overwrite the default value by defining them again in the
 # "param{kk}" struct hereunder.
 
-def HHsubsurf(df_aws: DataFrame, c: Struct):
-
+def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
     (
         time,
         T,
@@ -209,9 +208,18 @@ def HHsubsurf(df_aws: DataFrame, c: Struct):
 
         for findbalance in range(1, iter_max_EB):
             # SENSIBLE AND LATENT HEAT FLUX
-            # if Tsurf[k] == 0:
-            #     print("Tsurf is 0")
-            #     print(k)
+
+            #Debugging Tsurf
+            #if Tsurf[k] == 0:
+                #print("Tsurf == 0, of k =", str(k))
+                # print(Tsurf[k-1])
+                # Tsurf[k] = Tsurf[k-1]
+                # print(Tsurf[k])
+            
+            #if k == 7528:
+                #print("For k = 7528")
+                #print(findbalance)
+
             (
                 L[k],
                 LHF[k],
@@ -254,9 +262,15 @@ def HHsubsurf(df_aws: DataFrame, c: Struct):
                 rainfall[k],
                 c,
             )
-            if Tsurf[k] == 0:
-                print("tsurf 0 efter surfenergy, k:", str(k))
 
+            #Debugging Tsurf
+            # if Tsurf[k] == 0:
+            #     print("efter surfenergybudget")
+            # if k == 509:
+            #     print("Tsurf after surf energy budget, for k=509", str(Tsurf[k]))
+            # if k == 510:
+            #     print("Tsurf after surf energy budget, for k=510", str(Tsurf[k]))
+            
             if iter_max_EB == 1:
                 # if we are using surface temperature it might have been
                 # modified by SurfEnergyBudget. So we assign it again.
@@ -280,6 +294,10 @@ def HHsubsurf(df_aws: DataFrame, c: Struct):
         # GF[1:c.z_ice_max] = -k_eff[1:c.z_ice_max] * (T_ice[:c.z_ice_max-1,k] - T_ice[1:c.z_ice_max, k]) / c.dz_ice
         # GFsurf[k] = - k_eff[0] * (Tsurf[k]- T_ice[1,k]) / thick_first_lay
         c.rho_fresh_snow = rho_snow
+
+        #Debugging Tsurf
+        if Tsurf[k] == 0:
+            print("Before subsurface")
 
         (
             snowc[:, k],
@@ -314,8 +332,12 @@ def HHsubsurf(df_aws: DataFrame, c: Struct):
             melt_mweq[k],  # melt
             c.Tdeep,
             snowbkt[k - 1].copy(),
-            c,
+            c
         )
+
+        #Debugging Tsurf
+        if Tsurf[k] == 0:
+            print("after subsurface")
 
         # bulk density
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (
@@ -335,7 +357,13 @@ def HHsubsurf(df_aws: DataFrame, c: Struct):
 
         if snowthick[k] < 0:
             snowthick[k] = 0
+            print("snowthick < 0")
+            
     # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
+    
+    # Write parameters to csv file for main_firn.py input
+    # df = pd.DataFrame({"sublimation_mweq" : sublimation_mweq, "melt_mweq" : melt_mweq, "Tsurf" : Tsurf, "snowfall" : snowfall})
+    # df.to_csv("test_input_from_SEB_KAN_U.csv")
     
     return (
         L,
@@ -408,7 +436,7 @@ def IniRhoSnow(T, WS, c: Struct):
     return rho_snow
 
 
-def variables_preparation(df_aws: DataFrame, c: Struct):
+def variables_preparation(df_aws: pd.DataFrame, c: Struct):
     df_aws = df_aws.interpolate()
     time = df_aws.index.values
 
@@ -472,6 +500,7 @@ def variables_preparation(df_aws: DataFrame, c: Struct):
     meltflux = np.empty((len(time)), dtype="float64")
     melt_mweq = np.empty((len(time)), dtype="float64")
     sublimation_mweq = np.empty((len(time)), dtype="float64")
+    
     return (
         time,
         T,
@@ -649,6 +678,10 @@ def SurfEnergyBudget(
         Tsurf = Tsurf - dTsurf
     else:
         Tsurf = min(c.T_0, Tsurf + dTsurf)
+
+    #Debugging Tsurf
+    if Tsurf == 0:
+        print("Tsurf 0 in surfenergybudget return")
     return meltflux, Tsurf, dTsurf, EB_prev, stop
 
 
@@ -809,6 +842,7 @@ def SRbalance(SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c: Struct):
 def RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
     u_star = c.kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
 
+    print("In RoughSurf")
     # rough surfaces: Smeets & Van den Broeke 2008
     Re = u_star * z_0 / nu
     z_h = z_0 * np.exp(1.5 - 0.2 * np.log(Re) - 0.11 * (np.log(Re)) ** 2)
@@ -818,6 +852,7 @@ def RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
 
     z_q = z_h
     return z_h, z_q, u_star, Re
+
 
 def SmoothSurf_opt(
         WS: np.float64, z_0: np.float64, psi_m1: np.float64, 
@@ -908,6 +943,9 @@ def SensLatFluxes_bulk_opt(
     q_2m = q
     ws_10m = WS
 
+    if not snowthick > 0:
+        print("snowthick less than 0")
+
     if WS > c.WS_lim:
         # Roughness length scales for snow or ice - initial guess
         if WS < c.smallno:
@@ -915,11 +953,14 @@ def SensLatFluxes_bulk_opt(
             z_q = 1e-10
         else:
             (z_h, z_q, u_star, Re) = (
-                SmoothSurf_opt(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
+                SmoothSurf_opt(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)                
                 if snowthick > 0 
                 else RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
             )  
-       
+        #Debugging Tsurf    
+        if Tsurf == 0:
+            print("Tsurf 0 before es ice surf",str(Tsurf))       
+
         es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0)        
         q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
         L = 10e4
@@ -980,9 +1021,6 @@ def SensLatFluxes_bulk_opt(
             for i in range(0, c.iter_max_flux):
                 x1, x2, y1, y2, yq, yq2 = compute_x_y_const(c.gamma, z_0, z_WS, z_h, z_T, z_q, z_RH, L)
                 psi_m1, psi_m2, psi_h1, psi_h2, psi_q, psi_q2 = get_psi_unstable(x1, x2, y1, y2, yq, yq2)
-                # psi_m1, psi_m2, psi_h1, psi_h2, psi_q, psi_q2 = (np.float64(psi_m1), np.float64(psi_m2), 
-                #                                                  np.float64(psi_h1), np.float64(psi_h2), 
-                #                                                  np.float64(psi_q), np.float64(psi_q2))
                 
                 if WS < c.smallno:
                     z_h = 1e-10
@@ -1039,6 +1077,10 @@ def SensLatFluxes_bulk_opt(
         theta_2m = theta
         q_2m = q
         ws_10m = WS
+
+    #Debugging Tsurf
+    if Tsurf == 0:
+        print("Tsurf 0 in senslat")
 
     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
 

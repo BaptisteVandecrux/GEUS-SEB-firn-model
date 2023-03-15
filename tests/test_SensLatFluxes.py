@@ -133,7 +133,8 @@ class SensLatFluxesTestCase(unittest.TestCase):
 
 
 def writeArray():
-    arr = []
+    arr = [27.71875, 27.5625, 27.515625, 27.375, 27.453125, 27.40625, 27.875, 27.6875, 27.984375, 27.515625, 27.734375, 27.859375, 27.625, 27.46875, 27.5, 27.65625, 27.515625, 27.53125, 27.53125, 27.375, 27.671875, 27.640625, 27.703125, 27.65625, 27.484375, 27.921875, 27.46875]
+
     for i in range(len(arr)):
         print(arr[i])
 
@@ -247,7 +248,7 @@ def writeOutput():
         print(new_Re)
 
 
-writeOutput()
+#writeOutput()
 
 #writeArray()
 
