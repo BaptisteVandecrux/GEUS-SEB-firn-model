@@ -18,7 +18,7 @@ def subsurface(
     zsnmel,
     pTdeep,
     psnowbkt,
-    c,
+    c
 ):
     # HIRHAM subsurface scheme - version 2016
     # Developped by Peter Langen (DMI), Robert Fausto (GEUS)
@@ -1076,6 +1076,11 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc: np.ndarray, zso_cond
 
     nextisfrozen = rho_next >= c.rho_pco
     isfrozen = rho >= c.rho_pco
+
+    # we need to make sure that nextisfrozen and isfrozen have the same number of ones.
+    isfrozen[0] = False  # removed from SI calculation because no SI is formed on top of the first layer
+    nextisfrozen[-1] = False  # removed from SI calculation because we assume that no heat comes from the bottom boundary
+
     # The next layer has bulk density high enough that we will consider it as
     # an ice layer. Therefore we calculate SI-formation:
     snowV = 0.5 * psnowc[isfrozen == 1] * c.rho_water / prhofirn[isfrozen == 1]
@@ -1090,12 +1095,7 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc: np.ndarray, zso_cond
     # The potential superimposed ice (SI) formation (Only interested in positive SIF):
     potSIform = np.maximum(0, ki * dTdz / (c.rho_water * c.L_fus) * c.zdtime)
 
-    # Make as much SI as there is water available in the layer above the ice [jk]
-    
-   
-    #if pslwc[nextisfrozen == 1].shape != potSIform.shape:
-     #   print("not same shape")
-    
+    # Make as much SI as there is water available in the layer above the ice [jk]    
     SIform = np.minimum(pslwc[nextisfrozen == 1], potSIform)
     zsupimp = np.zeros_like(pslwc)
     zsupimp[nextisfrozen == 1] = SIform
@@ -1110,6 +1110,7 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc: np.ndarray, zso_cond
     ptsoil[isfrozen == 1] = ptsoil[isfrozen == 1] + SIform * c.L_fus / (
         thickness_weq[isfrozen == 1] * cpiceF(ptsoil[isfrozen == 1])
     )
+
     return ptsoil, psnic, pslwc, zsupimp
 
 

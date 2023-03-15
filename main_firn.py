@@ -11,14 +11,22 @@ import pandas as pd
 import numpy as np
 import lib_subsurface as sub
 import lib_initialization as ini
-from progressbar import progressbar
 import xarray as xr
 import lib_io as io
 import os
-
+from lib_initialization import ImportConst, load_json
+from progressbar import progressbar
 
 def run_GEUS_model(site, filename):
-    c = ini.ImportConst()
+    # Read paths for weather input and output file
+    parameters = load_json()
+    output_path = str(parameters['output_path'])
+    weather_station = str(parameters['weather_station'])
+
+    #c = set_constants()
+
+    c = ImportConst()
+    #c.station = weather_station
     c.station = site
     c.rh2oice = c.rho_water / c.rho_ice
     c.zdtime = 3600
@@ -27,7 +35,8 @@ def run_GEUS_model(site, filename):
     c.z_max = 50
     c.dz_ice = c.z_max / NumLayer
     c.verbose = 1
-    c.OutputFolder = "C://Data_save/Output firn model"
+    #c.OutputFolder = "C://Data_save/Output firn model"
+    c.OutputFolder = output_path
 
     df_info = pd.read_csv("Input/Constants/StationInfo.csv", sep=";")
     c.Tdeep = (

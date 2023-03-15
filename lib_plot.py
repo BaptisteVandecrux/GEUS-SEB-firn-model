@@ -72,15 +72,15 @@ def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
     im = ax.pcolormesh(
         time_grid[:, 0::6],
         depth[:, 0::6],
-        var_array[:, 0::6][:, :-1],
+        var_array[:, 0::6][:, :-1], 
         cmap=cmap_list[var_name],
         vmin=np.percentile(var_array, 5),
         vmax=np.percentile(var_array, 95),
     )
     if not zero_surf:
-        ax.plot(time[0::6], surface_height[0::6], linewidth=2, color="k")
+        ax.plot(time[0:len(surface_height):6], surface_height[0::6], linewidth=2, color="k")
     plt.colorbar(im, label=label_list[var_name], ax=ax)
-    if len(ylim) > 0:
+    if len(ylim) > 0: 
         ax.set_ylim(ylim)
     else:
         ax.invert_yaxis()
@@ -254,10 +254,14 @@ def plot_summary(df, c, filetag="summary", var_list=None):
 
     if not var_list:
         var_list = df.columns
+        df.columns = df.columns.astype(str)
+
     fig, ax = new_fig()
     count = 0
     count_fig = 0
+
     for i, var in enumerate(var_list):
+        var = str(var)           
         if "_origin" in var.lower():
             continue
         if var + "_Origin" in df.columns:
@@ -273,6 +277,8 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         ax[count].set_ylabel(var)
         ax[count].grid()
         ax[count].set_xlim((df.index[0], df.index[-1]))
+        # if var == "L":    #Changing the y-axis for L
+        #     ax[count].set_ylim((-10, 100))
         count = count + 1
 
         if count == 6:
@@ -291,6 +297,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         for k in range(count + 1, len(ax)):
             ax[k].set_axis_off()
         ax[0].set_title(c.station)
+        
         plt.savefig(
             c.OutputFolder + "/" + c.RunName + "/" + filetag + "_" + str(count_fig),
             bbox_inches="tight",

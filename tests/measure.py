@@ -1,30 +1,39 @@
 import __init__
 import time
-import main_SEB_firn as main
+from main_SEB_firn import run_SEB_firn, set_constants
 import lib_seb_smb_model as seb
 import numpy as np
 
 def run_measure():
     time_array = []
 
-    for i in range(30):
+    for i in range(10):
+        # Run test, keep going if error
         try:
             cpu_start_time = time.process_time()
-            main.run_SEB_firn()
+            run_SEB_firn()
             cpu_end_time = time.process_time()
             cpu_time = (cpu_end_time - cpu_start_time)
             time_array.append(cpu_time)
             print(time_array)
-        except:
-            print ("error "+str(IOError))
+        except Exception as e:
+            print (e)
             pass
 
-    for i in range(len(time_array)):
-        print(time_array[i])
+        # Run test, breaks if error
+        # cpu_start_time = time.process_time()
+        # run_SEB_firn()
+        # cpu_end_time = time.process_time()
+        # cpu_time = (cpu_end_time - cpu_start_time)
+        # time_array.append(cpu_time)
+        # print(time_array)
 
-    print(time_array)
-    print("Mean:")
-    print(str(np.mean(time_array)))
+    # for i in range(len(time_array)):
+    #     print(time_array[i])
+
+    # print(time_array)
+    # print("Mean:")
+    # print(str(np.mean(time_array)))
 
 def measure_SensLatFluxes():
     '''Measure time diff between optimized and not optimized SensLatFluxes,
@@ -46,7 +55,7 @@ def measure_SensLatFluxes():
     z_T = 2.4995
     z_RH = 2.4995
     z_0 = 0.0013
-    c = main.setConstants()
+    c = set_constants("KAN_U")
 
     for i in range(1000):
         # Measure with optimization
@@ -106,9 +115,9 @@ def measure_SensLatFluxes():
     print(str(np.mean(time_not_opt)))
 
 
-measure_SensLatFluxes()
+#measure_SensLatFluxes()
 
-#run_measure()
+run_measure()
 
 
 
