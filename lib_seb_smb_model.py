@@ -171,7 +171,7 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         snowbkt[k] = snowbkt[k - 1]
 
         SRnet, T_ice, internal_melting = SRbalance(
-            SRout, SRin, ind_snow_to_ice, snowthick, T_ice, rho, k, c
+            SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c
         )
 
         # Step 5/*:  Surface temperature calculation
