@@ -3,9 +3,16 @@ import time
 from main_SEB_firn import run_SEB_firn, set_constants
 import lib_seb_smb_model as seb
 import numpy as np
+import pandas as pd
+from progressbar import progressbar
+from lib_initialization import ImportConst, load_json
+import lib_io as io
+#from lib_seb_smb_model import HHsubsurf_test
+
 
 def run_measure():
     time_array = []
+    print("Have you controlled num of layers? To plot or not to plot?")
 
     for i in range(10):
         # Run test, keep going if error
@@ -15,7 +22,7 @@ def run_measure():
             cpu_end_time = time.process_time()
             cpu_time = (cpu_end_time - cpu_start_time)
             time_array.append(cpu_time)
-            print(time_array)
+            print("time in measure: ", time_array)
         except Exception as e:
             print (e)
             pass
@@ -31,9 +38,9 @@ def run_measure():
     # for i in range(len(time_array)):
     #     print(time_array[i])
 
-    # print(time_array)
-    # print("Mean:")
-    # print(str(np.mean(time_array)))
+    print(time_array)
+    print("Mean:")
+    print(str(np.mean(time_array)))
 
 def measure_SensLatFluxes():
     '''Measure time diff between optimized and not optimized SensLatFluxes,
@@ -41,7 +48,6 @@ def measure_SensLatFluxes():
 
     time_not_opt = []
     time_opt = []
-
     WS= 4.88
     nu= 1.5471445341359545e-05
     q = 0.002983881449656623
@@ -104,20 +110,17 @@ def measure_SensLatFluxes():
         cpu_time_notopt = (cpu_end_notopt - cpu_start_notopt)
         time_not_opt.append(cpu_time_notopt)
 
-    print("Optimized code: ")
-   # print(time_opt)
-    print("Mean:")
+    print("Optimized code, mean:")
     print(str(np.mean(time_opt)))
 
-    print("Not optimized code: ")
-   # print(time_not_opt)
-    print("Mean:")
+    print("Not optimized code, mean:")
     print(str(np.mean(time_not_opt)))
 
 
-#measure_SensLatFluxes()
-
-run_measure()
-
-
+if __name__ == '__main__':
+    #measure_SensLatFluxes()
+    run_measure()
+    #compare_full_simulation()
+    #check_diff()
+    
 

@@ -53,7 +53,7 @@ The working directory should contain:
 
 - Download the scripts from Github
 - Place the input data file in the Input/Weather data folder. For the example, let's continue with the data_KAN_M_combined_hour.txt previously generated using the [AWS data treatment suite](https://github.com/BaptisteVandecrux/AWS_processing). A short version of that file is already present in the Weather data folder.
-- Open parameters.json in Python and set the name of the station you want to process, for example KAN_U:
+- For main_SEB_firn: Open parameters.json in Python and set the name of the station you want to process, for example KAN_U:
 ```
 "weather_station" : "KAN_U"
 ```

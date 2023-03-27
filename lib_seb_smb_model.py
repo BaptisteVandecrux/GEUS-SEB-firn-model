@@ -61,6 +61,377 @@ from progressbar import progressbar
 # possible to overwrite the default value by defining them again in the
 # "param{kk}" struct hereunder.
 
+def HHsubsurf_test(df_aws: pd.DataFrame, c: Struct, SensLatVersion):
+    (
+        time,
+        T,
+        z_T,
+        WS,
+        z_WS,
+        RH,
+        z_RH,
+        pres,
+        SRin,
+        SRout,
+        LRin,
+        LRout,
+        snowfall,
+        rainfall,
+        T_rain,
+        theta,
+        theta_v,
+        q,
+        Tsurf,
+        rho_snow,
+        rho_atm,
+        nu,
+        mu,
+        L,
+        SHF,
+        LHF,
+        Re,
+        theta_2m,
+        q_2m,
+        ws_10m,
+        meltflux,
+        melt_mweq,
+        sublimation_mweq,
+    ) = variables_preparation(df_aws, c)
+    Tsurf_obs = T * np.nan
+
+    # Converts RH from relative to water to relative to ice
+    # RH_wrt_w = RH
+    # RH = RHwater2ice(RH_wrt_w, T, pres)
+
+    # Calculates specific humidity and saturation (needs RH relative to ice!)
+    [RH, q] = SpecHumSat(RH, T, pres, c)
+
+    (
+        rhofirn,
+        snowc,
+        snic,
+        slwc,
+        dgrain,
+        T_ice,
+        grndc,
+        grndd,
+        compaction,
+        zrfrz,
+        zsupimp,
+        ts,
+        zrogl,
+        pgrndcapc,
+        pgrndhflx,
+        dH_comp,
+        snowbkt,
+    ) = IniVar(time, c)
+
+    rho = rhofirn.copy()
+    SRnet = rhofirn[:, 0].copy()
+
+    # [H_comp, GF, GFsurf, GFsubsurf, melt_mweq,snowbkt_out,sublimation_mweq,
+    # SMB_mweq,  ~, L, LHF, meltflux, ~, rho,  runoff,SHF, SRnet,~,  T_ice,
+    # grndc, grndd , pdgrain, refreezing,  theta_2m,q_2m,ws_10m, Tsurf,
+    # snowthick,z_icehorizon,Re,Ri,err]= IniVar(c)
+
+    # c = CalculateMeanAccumulation(time,snowfall, c)
+
+    # preparing some variables
+    theta = T + z_T * c.g / c.c_pd
+    theta_v = theta * (1 + ((1 - c.es) / c.es) * q)
+
+    count = 1
+    count2 = 1
+
+    for k in progressbar(range(len(time))):
+        # Step 1/*: Update snowthickness and instrument heights
+        if k == 0:
+            snowthick = np.empty((len(time)), dtype="float64")
+            snowthick[0] = c.snowthick_ini
+            # snow to ice transition
+            z_icehorizon = int(min(c.z_ice_max, np.floor(snowthick[0] / c.dz_ice)))
+        else:
+            snowthick[k] = snowthick[k - 1]  # will be updated at  of time loop
+
+        # Step 2/*: shortwave radiation balance snow & ice penetration
+        thickness_m = snowc[:, k - 1] * (c.rho_water / rhofirn[:, k - 1]) + snic[
+            :, k - 1
+        ] * (c.rho_water / c.rho_ice)
+        depth_m = np.cumsum(thickness_m, 0)
+        rho[:, k] = (
+            (snowc[:, k - 1] + snic[:, k - 1] + slwc[:, k - 1])
+            * c.rho_water
+            / thickness_m
+        )
+
+        snowbkt[k] = snowbkt[k - 1]
+
+        SRnet, T_ice, internal_melting = SRbalance(
+            SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c
+        )
+
+        # Step 5/*:  Surface temperature calculation
+        k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
+
+        # effective conductivity by Anderson 1976, is ok at limits
+        # thickness of the first layer in m weq for thermal transfer
+        thick_first_lay = snic[0, k - 1] + snowc[0, k - 1]
+
+        # starting surface temperature solving
+        if (c.solve_T_surf == 0) & (~np.isnan(Tsurf_obs[k])):
+            print("Solve_T_surf == 0")
+            # if user asked for using measured surface temperature instead
+            # of solving for it and that there is a measurement available
+            iter_max_EB = 1  # we do one iteration in the solver bellow
+            Tsurf[k] = Tsurf_obs[k]  # we use measured surface temp
+
+        else:
+            iter_max_EB = c.iter_max_EB  # otherwise just using standard value
+            
+        # Prepare parameters needed for SEB
+        EB_prev = 1
+        dTsurf = c.dTsurf_ini  # Initial surface temperature step in search for EB=0 (C)
+
+        # surface roughness
+        if snowthick[k] > c.smallno:
+            # if there is snow
+            if snowbkt[k] > c.smallno:
+                # fresh snow
+                z_0 = c.z0_fresh_snow
+            else:
+                # old snow from Lefebre et al (2003) JGR
+                z_0 = max(
+                    c.z0_old_snow,
+                    c.z0_old_snow
+                    + (c.z0_ice - c.z0_old_snow) * (rho[0, k] - 600) / (920 - 600),
+                )
+
+        else:
+            # ice roughness length
+            z_0 = c.z0_ice
+
+
+
+        for findbalance in range(1, iter_max_EB):
+            # SENSIBLE AND LATENT HEAT FLUX
+
+            #Debugging Tsurf
+            #if Tsurf[k] == 0:
+                #print("Tsurf == 0, of k =", str(k))
+                # print(Tsurf[k-1])
+                # Tsurf[k] = Tsurf[k-1]
+                # print(Tsurf[k])
+            if SensLatVersion == 1:
+                if count ==1:
+                    print("In SensLatVersion 1")
+                    count = 2
+                (
+                    L[k],
+                    LHF[k],
+                    SHF[k],
+                    theta_2m[k],
+                    q_2m[k],
+                    ws_10m[k],
+                    Re[k],
+                ) = SensLatFluxes_bulk_opt(
+                    WS[k],
+                    nu[k],
+                    q[k],
+                    snowthick[k],
+                    Tsurf[k],
+                    theta[k],
+                    theta_v[k],
+                    pres[k],
+                    rho_atm[k],
+                    z_WS[k],
+                    z_T[k],
+                    z_RH[k],
+                    #z_0,
+                    np.float64(z_0),
+                    c,
+                    k
+                )
+
+            if SensLatVersion == 2:
+                if count2 ==1:
+                    print("In SensLatVersion 2")
+                    count2 = 2
+
+                (
+                    L[k],
+                    LHF[k],
+                    SHF[k],
+                    theta_2m[k],
+                    q_2m[k],
+                    ws_10m[k],
+                    Re[k],
+                ) = SensLatFluxes_bulk_opt(
+                    WS[k],
+                    nu[k],
+                    q[k],
+                    snowthick[k],
+                    Tsurf[k],
+                    theta[k],
+                    theta_v[k],
+                    pres[k],
+                    rho_atm[k],
+                    z_WS[k],
+                    z_T[k],
+                    z_RH[k],
+                    #z_0,
+                    np.float64(z_0),
+                    c,
+                    k
+                )
+
+            # SURFACE ENERGY BUDGET
+            meltflux[k], Tsurf[k], dTsurf, EB_prev, stop = SurfEnergyBudget(
+                SRnet,
+                LRin[k],
+                Tsurf[k],
+                k_eff,
+                thick_first_lay,
+                T_ice[:, k],
+                T_rain[k],
+                dTsurf,
+                EB_prev,
+                SHF[k],
+                LHF[k],
+                rainfall[k],
+                c,
+            )
+
+            #Debugging Tsurf
+            # if Tsurf[k] == 0:
+            #     print("efter surfenergybudget")
+            # if k == 509:
+            #     print("Tsurf after surf energy budget, for k=509", str(Tsurf[k]))
+            # if k == 510:
+            #     print("Tsurf after surf energy budget, for k=510", str(Tsurf[k]))
+            
+            if iter_max_EB == 1:
+                # if we are using surface temperature it might have been
+                # modified by SurfEnergyBudget. So we assign it again.
+                Tsurf[k] = Tsurf_obs[k]
+
+            if stop:
+                break
+
+        if (iter_max_EB != 1) & (
+            (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max)
+        ):
+            print("Problem closing energy budget")
+
+        # Step 6/*:  Mass Budget
+        # in mweq
+        melt_mweq[k] = meltflux[k] * c.dt_obs / c.L_fus / c.rho_water
+        sublimation_mweq[k] = LHF[k] * c.dt_obs / c.L_sub / c.rho_water  # in mweq
+        # positive LHF -> deposition -> dH_subl positive
+
+        # ========== Step 7/*:  Sub-surface model ====================================
+        # GF[1:c.z_ice_max] = -k_eff[1:c.z_ice_max] * (T_ice[:c.z_ice_max-1,k] - T_ice[1:c.z_ice_max, k]) / c.dz_ice
+        # GFsurf[k] = - k_eff[0] * (Tsurf[k]- T_ice[1,k]) / thick_first_lay
+        c.rho_fresh_snow = rho_snow
+
+        #Debugging Tsurf
+        if Tsurf[k] == 0:
+            print("Before subsurface")
+
+        (
+            snowc[:, k],
+            snic[:, k],
+            slwc[:, k],
+            T_ice[:, k],
+            zrfrz[:, k],
+            rhofirn[:, k],
+            zsupimp[:, k],
+            dgrain[:, k],
+            zrogl[k],
+            Tsurf[k],
+            grndc[:, k],
+            grndd[:, k],
+            pgrndcapc[k],
+            pgrndhflx[k],
+            dH_comp[k],
+            snowbkt[k],
+            compaction[:, k],
+        ) = subsurface(
+            Tsurf[k],
+            grndc[:, k - 1].copy(),
+            grndd[:, k - 1].copy(),
+            slwc[:, k - 1].copy(),
+            snic[:, k - 1].copy(),
+            snowc[:, k - 1].copy(),
+            rhofirn[:, k - 1].copy(),
+            T_ice[:, k].copy(),
+            dgrain[:, k - 1].copy(),
+            snowfall[k] + sublimation_mweq[k],  # net accumulation
+            rainfall[k],  # rain
+            melt_mweq[k],  # melt
+            c.Tdeep,
+            snowbkt[k - 1].copy(),
+            c
+        )
+
+        #Debugging Tsurf
+        if Tsurf[k] == 0:
+            print("after subsurface")
+
+        # bulk density
+        rho[:, k] = (snowc[:, k] + snic[:, k]) / (
+            snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
+        )
+        # refreezing[:,k] = zrfrz[:, k] + zsupimp[:, k]
+        z_icehorizon = int(np.floor(snowthick[k] / c.dz_ice))
+
+        # if k> 1:
+        #     SMB_mweq[k] =  snowfall[k] - runoff[k]             + rainfall[k] + sublimation_mweq[k]
+
+        #     # Update BV2017: With the layer-conservative model, the surface height
+        #     # can be calculated outside of the sub-surface scheme assuming that the
+        #     # bottom of the collumn remains at constant depth
+        #     # cumulative dry compaction
+        #     H_comp[k] = H_comp(k-1) + dH_comp  #in real m
+
+        if snowthick[k] < 0:
+            snowthick[k] = 0
+            print("snowthick < 0")
+            
+    # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
+    
+    # Write parameters to csv file for main_firn.py input
+    # df = pd.DataFrame({"sublimation_mweq" : sublimation_mweq, "melt_mweq" : melt_mweq, "Tsurf" : Tsurf, "snowfall" : snowfall})
+    # df.to_csv("test_input_from_SEB_KAN_U.csv")
+    
+    return (
+        L,
+        LHF,
+        SHF,
+        theta_2m,
+        q_2m,
+        ws_10m,
+        Re,
+        melt_mweq,
+        sublimation_mweq,
+        snowc,
+        snic,
+        slwc,
+        T_ice,
+        zrfrz,
+        rhofirn,
+        zsupimp,
+        dgrain,
+        zrogl,
+        Tsurf,
+        grndc,
+        grndd,
+        pgrndcapc,
+        pgrndhflx,
+        dH_comp,
+        snowbkt,
+        compaction,
+    )
+
 def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
     (
         time,
@@ -176,6 +547,8 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
 
         # starting surface temperature solving
         if (c.solve_T_surf == 0) & (~np.isnan(Tsurf_obs[k])):
+            print("Solve_T_surf == 0")
+
             # if user asked for using measured surface temperature instead
             # of solving for it and that there is a measurement available
             iter_max_EB = 1  # we do one iteration in the solver bellow
@@ -209,17 +582,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         for findbalance in range(1, iter_max_EB):
             # SENSIBLE AND LATENT HEAT FLUX
 
-            #Debugging Tsurf
-            #if Tsurf[k] == 0:
-                #print("Tsurf == 0, of k =", str(k))
-                # print(Tsurf[k-1])
-                # Tsurf[k] = Tsurf[k-1]
-                # print(Tsurf[k])
-            
-            #if k == 7528:
-                #print("For k = 7528")
-                #print(findbalance)
-
             (
                 L[k],
                 LHF[k],
@@ -244,6 +606,7 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
                 #z_0,
                 np.float64(z_0),
                 c,
+                k
             )
 
             # SURFACE ENERGY BUDGET
@@ -295,10 +658,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         # GFsurf[k] = - k_eff[0] * (Tsurf[k]- T_ice[1,k]) / thick_first_lay
         c.rho_fresh_snow = rho_snow
 
-        #Debugging Tsurf
-        if Tsurf[k] == 0:
-            print("Before subsurface")
-
         (
             snowc[:, k],
             snic[:, k],
@@ -334,10 +693,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
             snowbkt[k - 1].copy(),
             c
         )
-
-        #Debugging Tsurf
-        if Tsurf[k] == 0:
-            print("after subsurface")
 
         # bulk density
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (
@@ -923,7 +1278,7 @@ def get_zh_zq(z_0, ch1, ch2, ch3, ind, Re, cq1, cq2, cq3):
 def SensLatFluxes_bulk_opt(
     WS: np.float64, nu: np.float64, q: np.float64, snowthick: np.float64, 
     Tsurf: np.float64, theta: np.float64, theta_v: np.float64, pres: np.float64,
-    rho_atm: np.float64, z_WS: np.float64, z_T: np.float64, z_RH: np.float64, z_0: np.float64, c: Struct
+    rho_atm: np.float64, z_WS: np.float64, z_T: np.float64, z_RH: np.float64, z_0: np.float64, c: Struct, k=0
 ):
     # SensLatFluxes: Calculates the Sensible Heat Flux (SHF), Latent Heat Fluxes
     # (LHF) and Monin-Obhukov length (L). Corrects for atmospheric stability.
@@ -934,7 +1289,7 @@ def SensLatFluxes_bulk_opt(
     # Author: Dirk Van As (dva@geus.dk) & Robert S. Fausto (rsf@geus.dk)
     # translated to python by Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
-   
+    
     psi_m1 = np.float64(0)
     psi_m2 = np.float64(0)
 
@@ -957,10 +1312,17 @@ def SensLatFluxes_bulk_opt(
                 if snowthick > 0 
                 else RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
             )  
-        #Debugging Tsurf    
-        if Tsurf == 0:
-            print("Tsurf 0 before es ice surf",str(Tsurf))       
 
+        # with np.errstate(divide='raise'):
+        #     try: 
+        #         es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0)   
+        #     except:
+        #         print("\n Zero division in es_ice_surf")
+        #         print("Tsurf is: ", Tsurf)
+        #         print("for k:", k)
+        #         es_ice_surf = 1e-76 #Not sure what number to put es_ice_surf to
+        #         return -999, 0, 0, theta, q, WS, 0  #Not sure if this is what we want to happen
+                
         es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0)        
         q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
         L = 10e4
@@ -968,6 +1330,7 @@ def SensLatFluxes_bulk_opt(
         if (theta >= Tsurf) & (WS >= c.WS_lim):  # stable stratification
             # correction from Holtslag, A. A. M. and De Bruin, H. A. R.: 1988, ‘Applied Modelling of the Night-Time
             # Surface Energy Balance over Land’, J. Appl. Meteorol. 27, 689–704.
+
             for i in range(0, c.iter_max_flux):
                 psi_m1 = get_psi_m1_stable(c.aa, c.bb, c.cc, c.dd, z_0, L)
                 psi_m2 = get_psi_m2_stable(c.aa, c.bb, c.cc, c.dd, L, z_WS)
@@ -995,12 +1358,23 @@ def SensLatFluxes_bulk_opt(
                     z_q, psi_q2, psi_q
                 )
 
+                q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)               
+
                 SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, c.L_sub)
 
                 L_prev = L
                 # L = u_star**2 * theta_v  / ( 3.9280 * th_star*(1 + 0.6077*q_star))
 
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
+
+                # if L > 1000000 or L < -1000000:
+                #     print("Stable stratification, L = ", L)
+                #     print("for k: ", k)
+                #     print("SHF: ", SHF, "LHF:", LHF, "theta:", theta, "u:star:", u_star, "q: ", q,"th_star:", th_star, "q_star: ", q_star)
+                #     print("Tsurf:", Tsurf)
+                # if abs(th_star) < 1.2e-06:
+                #     print("th_star smaller than 1.2e-06: ", th_star)
+                #     print("For k : ", k)
 
                 if (L < c.smallno) | (abs((L_prev - L)) < c.L_dif):
                     # calculating 2m temperature, humidity and wind speed
@@ -1016,7 +1390,6 @@ def SensLatFluxes_bulk_opt(
             # correction defs as in
             # Dyer, A. J.: 1974, ‘A Review of Flux-Profile Relationships’, Boundary-Layer Meteorol. 7, 363– 372.
             # Paulson, C. A.: 1970, ‘The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer’, J. Appl. Meteorol. 9, 857–861.
-            # print("In second if")
 
             for i in range(0, c.iter_max_flux):
                 x1, x2, y1, y2, yq, yq2 = compute_x_y_const(c.gamma, z_0, z_WS, z_h, z_T, z_q, z_RH, L)
@@ -1039,12 +1412,24 @@ def SensLatFluxes_bulk_opt(
                     q, q_surf, z_RH,
                     z_q, psi_q2, psi_q
                 )
+
+                q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)   
                 SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, c.L_sub)
 
                 L_prev = L
 
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
-               
+                #L =  u_star ** 2 * theta * (1 + ((1 - c.es) / c.es) * q) / (c.g * c.kappa * th_star * (1 + ((1 - c.es) / c.es) * q_star))
+                
+                # if L > 1000000 or L < -1000000:                
+                #     print("Unstable stratification, L = ", L)
+                #     print("for k: ", k)
+                #     print("SHF: ", SHF, "LHF:", LHF, "theta:", theta, "u:star:", u_star, "q: ", q,"th_star:", th_star, "q_star: ", q_star)
+                #     print("Tsurf:", Tsurf) 
+                # if abs(th_star) < -0.0000001 :
+                #     print("th_star smaller than 1.2e-06: ", th_star)
+                #     print("For k : ", k)
+
                 if abs((L_prev - L)) < c.L_dif:
                     #calculating 2m temperature, humidity and wind speed
                     theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(Tsurf, th_star, c.kappa, 
@@ -1057,6 +1442,7 @@ def SensLatFluxes_bulk_opt(
     else:
         # threshold in windspeed ensuring the stability of the SHF/THF
         # caluclation. For low wind speeds those fluxes are anyway very small.
+
         Re = 0
         u_star = 0
         th_star = -999
@@ -1077,10 +1463,6 @@ def SensLatFluxes_bulk_opt(
         theta_2m = theta
         q_2m = q
         ws_10m = WS
-
-    #Debugging Tsurf
-    if Tsurf == 0:
-        print("Tsurf 0 in senslat")
 
     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
 
@@ -1154,7 +1536,7 @@ def calc_2m_theta_q_ws(Tsurf, th_star, kappa,
 
 # A function computing th_star and q_star, called from SensLatFluxes_bulk
 # Returns: th_star and q_star
-@njit#(fastmath=True)
+@njit
 def get_th_star_q_star(kappa, theta, Tsurf, z_T, z_h, psi_h2, psi_h1, q, q_surf, z_RH, z_q, psi_q2, psi_q):
     th_star = (kappa * (theta - Tsurf) /
                (np.log(z_T / z_h) - psi_h2 + psi_h1))
@@ -1185,7 +1567,7 @@ def get_L(u_star, theta, es, q, g, kappa, th_star, q_star):
 # A function computing saturation vapour pressure in a faster way. 
 # Parameters: Tsurf, c.T_0 as cT_0, c.es_0 as es_0
 # Returns: value for es_ice_surf
-@njit#(fastmath=True)
+@njit
 def get_es_ice_surf(Tsurf, cT_0, es_0):
     return (10 ** (
         -9.09718 * (cT_0 / Tsurf - 1.0)
@@ -1193,6 +1575,7 @@ def get_es_ice_surf(Tsurf, cT_0, es_0):
             + 0.876793 * (1.0 - Tsurf / cT_0)
             + np.log10(es_0)
         )) 
+   # return es_ice_surf
 
 # Several functions computing values for psi in a faster way. 
 # Done in separate functions to maintain correct results.
@@ -1230,7 +1613,7 @@ def get_psi_h2_stable(aa, bb, cc, dd, L , z_T) :
         + bb * cc / dd
         ))
 
-@njit#(fastmath=True)
+@njit
 def get_psi_q_stable(aa, bb, cc, dd, L, z_q):
     return np.float64(-(
         aa * z_q / L
@@ -1238,7 +1621,7 @@ def get_psi_q_stable(aa, bb, cc, dd, L, z_q):
         + bb * cc / dd
         ))
 
-@njit#(fastmath=True)
+@njit
 def get_psi_q2_stable(aa, bb, cc, dd, L, z_RH):
     return np.float64(-(
         aa* z_RH / L
@@ -1250,7 +1633,7 @@ def get_psi_q2_stable(aa, bb, cc, dd, L, z_RH):
 # A function computing x and y parameters in a faster way.
 # Parameters: gamma from Struct c (c.gamma), z_0, z_WS, z_h, z_T, z_q, z_RH and L
 # Returns: the calculated parameters x1, x2, y1, y2, yq, yq2
-@njit#(fastmath=True)
+@njit
 def compute_x_y_const(gamma, z_0, z_WS, z_h, z_T, z_q, z_RH, L):
     x1 = (1 - gamma * z_0 / L) ** 0.25
     x2 = (1 - gamma * z_WS / L) ** 0.25
@@ -1263,7 +1646,7 @@ def compute_x_y_const(gamma, z_0, z_WS, z_h, z_T, z_q, z_RH, L):
 # A function updating the psi values, in a fast way.
 # Parameters: x1, x2, y1, y2, yq, yq2 from SensLatFluxes_bulk
 # Returns: the updated psi-values
-@njit#(fastmath=True)
+@njit
 def get_psi_unstable(x1, x2, y1, y2, yq, yq2):
     psi_m1 = np.float64(
         np.log(((1 + x1) / 2) ** 2 * (1 + x1 ** 2) / 2)
@@ -1339,7 +1722,7 @@ def SmoothSurf_old(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
 def SensLatFluxes_bulk_old(
     WS: np.float64, nu: np.float64, q: np.float64, snowthick: np.float64, 
     Tsurf: np.float64, theta: np.float64, theta_v: np.float64, pres: np.float64,
-    rho_atm: np.float64, z_WS: np.float64, z_T: np.float64, z_RH: np.float64, z_0: float, c: Struct
+    rho_atm: np.float64, z_WS: np.float64, z_T: np.float64, z_RH: np.float64, z_0: float, c: Struct, k=0
 ):
     # SensLatFluxes: Calculates the Sensible Heat Flux (SHF), Latent Heat Fluxes
     # (LHF) and Monin-Obhukov length (L). Corrects for atmospheric stability.
@@ -1369,14 +1752,30 @@ def SensLatFluxes_bulk_old(
                 z_h, z_q, u_star, Re = SmoothSurf_old(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
             else:
                 z_h, z_q, u_star, Re = RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
+      
+
+        # with np.errstate(divide='raise'):
+        #     try: 
+        #         es_ice_surf = 10 ** (
+        #             -9.09718 * (c.T_0 / Tsurf - 1.0)
+        #             - 3.56654 * np.log10(c.T_0 / Tsurf)
+        #             + 0.876793 * (1.0 - Tsurf / c.T_0)
+        #             + np.log10(c.es_0)
+        #         )
+        #     except:
+        #         print("\n Zero division in es_ice_surf")
+        #         print("Tsurf is: ", Tsurf)
+        #         print("for k:", k)
+        #         es_ice_surf = 1e-76
+        #         return -999, 0, 0, theta, q, WS, 0
 
         es_ice_surf = 10 ** (
-            -9.09718 * (c.T_0 / Tsurf - 1.0)
-            - 3.56654 * np.log10(c.T_0 / Tsurf)
-            + 0.876793 * (1.0 - Tsurf / c.T_0)
-            + np.log10(c.es_0)
-        )
-                
+                    -9.09718 * (c.T_0 / Tsurf - 1.0)
+                    - 3.56654 * np.log10(c.T_0 / Tsurf)
+                    + 0.876793 * (1.0 - Tsurf / c.T_0)
+                    + np.log10(c.es_0)
+                )
+        
         q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
         L = 10e4
 
@@ -1446,6 +1845,20 @@ def SensLatFluxes_bulk_old(
                     * (1 + ((1 - c.es) / c.es) * q)
                     / (c.g * c.kappa * th_star * (1 + ((1 - c.es) / c.es) * q_star))
                 )
+
+                # if L > 1000000 or L < -1000000:
+                #     print("Stable stratification, L = ", L)
+                #     print("for k: ", k)
+                #     print("SHF: ", SHF, "LHF:", LHF, "theta:", theta, "u:star:", u_star, "q: ", q,"th_star:", th_star, "q_star: ", q_star)
+                #     print("Tsurf: ", Tsurf)
+                # if k==8440:
+                #     print("For k:", k, ", L is:")
+                #     print(L)
+                #     print("Tsurf",Tsurf)
+                #     print("th_star",th_star)
+                #     print("es ice surf: ", es_ice_surf)
+                
+
 
                 if (L < c.smallno) | (abs((L_prev - L)) < c.L_dif):
                     # calculating 2m temperature, humidity and wind speed
