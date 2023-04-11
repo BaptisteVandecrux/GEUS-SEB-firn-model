@@ -115,10 +115,14 @@ class SensLatFluxesTestCase(unittest.TestCase):
 
 
 def writeArray():
-    arr = [27.71875, 27.5625, 27.515625, 27.375, 27.453125, 27.40625, 27.875, 27.6875, 27.984375, 27.515625, 27.734375, 27.859375, 27.625, 27.46875, 27.5, 27.65625, 27.515625, 27.53125, 27.53125, 27.375, 27.671875, 27.640625, 27.703125, 27.65625, 27.484375, 27.921875, 27.46875]
+    arr = [21.1, 21.2, 20.7, 20.9, 32.5, 32.5, 32.3, 34.0]
 
+    a = np.array(arr)
+    std = np.std(a)
     for i in range(len(arr)):
         print(arr[i])
+
+    print(std)
 
 def writeOutput():
         '''Test and compare output from SensLatFluxes with old code output'''
@@ -410,7 +414,7 @@ def compare_SensLatFluxes_output():
 if __name__ == '__main__':
     #unittest.main()
     #writeOutput()
-    #writeArray()
+    writeArray()
     #print_diff()
     #compare_SensLatFluxes_output()
-    test_func()
+    #test_func()

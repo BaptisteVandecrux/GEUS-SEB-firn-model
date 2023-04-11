@@ -590,7 +590,7 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
                 q_2m[k],
                 ws_10m[k],
                 Re[k],
-            ) = SensLatFluxes_bulk_opt(
+            ) = SensLatFluxes_bulk_old(
                 WS[k],
                 nu[k],
                 q[k],
@@ -717,8 +717,9 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
     # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
     
     # Write parameters to csv file for main_firn.py input
+    # print("Writing to csv")
     # df = pd.DataFrame({"sublimation_mweq" : sublimation_mweq, "melt_mweq" : melt_mweq, "Tsurf" : Tsurf, "snowfall" : snowfall})
-    # df.to_csv("test_input_from_SEB_KAN_U.csv")
+    # df.to_csv("param_from_old_SEB_KAN_M_200_lay.csv")
     
     return (
         L,

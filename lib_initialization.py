@@ -149,8 +149,8 @@ def InitializationSubsurface(
     df_ini_dens["depth_weq"] = np.cumsum(df_ini_dens["thickness_mweq"])
     df_ini_dens = df_ini_dens.set_index("depth_weq")
 
-    NumLayer = c.z_max / c.dz_ice
-    #NumLayer = 200
+    #NumLayer = c.z_max / c.dz_ice
+    NumLayer = 200
 
     depth_mod_weq = np.insert(
         np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0

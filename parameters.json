@@ -26,7 +26,8 @@
     },
 
 
-    "output_path": "./Output/"
+    "output_path": "./Output/",
+    "output_path_firn" : "./Output main_firn"
 
    
 }
