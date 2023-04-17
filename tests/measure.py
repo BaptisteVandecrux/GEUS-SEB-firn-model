@@ -45,7 +45,7 @@ def measure_firn_parallel():
     print("--- Measure firn parallel running ---")
     #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M"]
     site_list = ["KAN_U", "KAN_M"]
-
+    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M"]
     time_list = []
     numb_loops = 10
     
@@ -61,9 +61,11 @@ def measure_firn_parallel():
 
 
 def measure_firn_old():
+    print("Are you plotting anything?")
     print("--- Measure firn old running ---")
-    site_list = ["KAN_U", "KAN_M"]
+    #site_list = ["KAN_U", "KAN_M"]
     #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M"]
+    site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M"]
 
     time_list = []
     tot_time = 0
@@ -85,9 +87,9 @@ def measure_firn_old():
     return(time_list)
 
 def run_all_measures_firn():
-    old_loop_time = measure_firn_old()
-    print("Old loop time:")
-    print(old_loop_time)
+    # old_loop_time = measure_firn_old()
+    # print("Old loop time:")
+    # print(old_loop_time)
 
     parallel_time = measure_firn_parallel()
     print("Parallel time: ")

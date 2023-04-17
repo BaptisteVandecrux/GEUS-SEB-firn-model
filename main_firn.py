@@ -58,7 +58,7 @@ def run_GEUS_model_opt(site):
    
     # New code:
     # Load weather input data
-    df_aws = io.load_promice(weather_data_input_path)[:600]
+    df_aws = io.load_promice(weather_data_input_path)[:6000]
     df_aws = df_aws.set_index("time").resample("H").mean()
     time = df_aws.index.values
 
@@ -90,7 +90,7 @@ def run_GEUS_model_opt(site):
         #print("You do not have preprocessed input data in the right format. Values from the SEB model will be used.")
         # Read parameter values from main SEB firn, UPDATE
         path = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\Input\Weather data\param_from_old_SEB_' + site + '_200_lay.csv'
-        print("parallelised code, path: ", path)
+        #print("parallelised code, path: ", path)
         df_SEB_output = pd.read_csv(path, index_col=False)
         snowfall = df_SEB_output['snowfall']
         Tsurf = df_SEB_output['Tsurf']
@@ -125,7 +125,7 @@ def run_GEUS_model_opt(site):
             dH_comp[i],
             snowbkt[i],
             compaction[:, i],
-        ) = sub.subsurface(
+        ) = sub.subsurface_opt(
             Tsurf[i].copy(),
             grndc[:, i - 1].copy(),
             grndd[:, i - 1].copy(),
@@ -163,16 +163,16 @@ def run_GEUS_model_opt(site):
                 c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
             i = i + 1
 
-    # io.write_2d_netcdf(snowc, "snowc", depth_act, time, c)
-    # io.write_2d_netcdf(snic, "snic", depth_act, time, c)
-    # io.write_2d_netcdf(slwc, "slwc", depth_act, time, c)
-    # io.write_2d_netcdf(density_bulk, "density_bulk", depth_act, time, c)
-    # io.write_2d_netcdf(rhofirn, "rhofirn", depth_act, time, c)
-    # io.write_2d_netcdf(tsoil, "T_ice", depth_act, time, c)
-    # # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, time, RunName)
-    # # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, time, RunName)
-    # # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, time, RunName)
-    # io.write_2d_netcdf(compaction, "compaction", depth_act, time, c)
+    io.write_2d_netcdf(snowc, "snowc", depth_act, time, c)
+    io.write_2d_netcdf(snic, "snic", depth_act, time, c)
+    io.write_2d_netcdf(slwc, "slwc", depth_act, time, c)
+    io.write_2d_netcdf(density_bulk, "density_bulk", depth_act, time, c)
+    io.write_2d_netcdf(rhofirn, "rhofirn", depth_act, time, c)
+    io.write_2d_netcdf(tsoil, "T_ice", depth_act, time, c)
+    # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, time, RunName)
+    # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, time, RunName)
+    # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, time, RunName)
+    io.write_2d_netcdf(compaction, "compaction", depth_act, time, c)
 
     # #Plotting from main_seb_firn.py
     # plt.close("all")
@@ -233,7 +233,7 @@ def run_GEUS_model_old(site, filename):
 
     # New code for loading data:
     # Load weather input data
-    df_aws = io.load_promice(weather_data_input_path)[:600]
+    df_aws = io.load_promice(weather_data_input_path)[:6000]
     df_aws = df_aws.set_index("time").resample("H").mean()
     time = df_aws.index.values
 
@@ -352,10 +352,10 @@ def run_GEUS_model_old(site, filename):
     # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, time, RunName)
     io.write_2d_netcdf(compaction, "compaction", depth_act, time, c)
 
-    # Plotting from main_seb_firn.py
-    plt.close("all")
-    lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
-    lpl.plot_summary(df_SEB_output, c, 'SEB_output')
+    # # Plotting from main_seb_firn.py
+    # plt.close("all")
+    # lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+    # lpl.plot_summary(df_SEB_output, c, 'SEB_output')
 
     print("File created: ",c.RunName)
     return c.RunName
@@ -381,6 +381,8 @@ def run_main_firn_old(site_list):
 def run_main_firn_parallel(site_list):
     num_cores = multiprocessing.cpu_count()
     run_name_list = Parallel(n_jobs=num_cores, verbose=10)(delayed(run_GEUS_model_opt)(site) for site in site_list)
+    #run_name_list = Parallel(n_jobs=4, verbose=10)(delayed(run_GEUS_model_opt)(site) for site in site_list)
+
     #run_name_list = []
    
     # for site in site_list:
@@ -393,14 +395,14 @@ def run_main_firn_parallel(site_list):
 if __name__ == "__main__":
     site_list = [
          "KAN_M",
-         "KAN_U"         
+         "KAN_U"       
     ] 
 
     # Run old main_firn
-    #run_main_firn_old(site_list)
+    run_main_firn_old(site_list)
 
     # Run new main_firn, parallelised
-    run_main_firn_parallel(site_list)
+    #run_main_firn_parallel(site_list)
 
 
 
