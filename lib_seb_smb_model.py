@@ -141,6 +141,11 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
     theta_v = theta * (1 + ((1 - c.es) / c.es) * q)
 
     for k in progressbar(range(len(time))):
+        # calculating layer thickness, depth and bulk density
+        thickness_m = snowc[:, k - 1] * (c.rho_water / rhofirn[:, k - 1]) + snic[:, k - 1] * (c.rho_water / c.rho_ice)
+        depth_m = np.cumsum(thickness_m, 0)
+        rho[:, k] = (snowc[:, k - 1] + snic[:, k - 1] + slwc[:, k - 1]) * c.rho_water / thickness_m
+        
         # Step 1/*: Update snowthickness and instrument heights
         if k == 0:
             snowthick = np.empty((len(time)), dtype="float64")
@@ -148,19 +153,21 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
             # snow to ice transition
             z_icehorizon = int(min(c.z_ice_max, np.floor(snowthick[0] / c.dz_ice)))
         else:
-            snowthick[k] = snowthick[k - 1]  # will be updated at  of time loop
+            # we define the snow thickness as the distance to the first layer above pore close off
+            snow_layers = np.argwhere(rho<830)
+            if len(snow_layers) == 0:
+                snowthick[k] = 0
+                z_icehorizon = 0
+            elif len(snow_layers) == len(rho):
+                snowthick[k] = 99
+                z_icehorizon = len(depth_m)
+            else:
+                snowthick[k] = np.cumsum(np.append([0],depth_m[:-1]))[np.argwhere(rho[:, k]<830)[-1, 0]+1]
+                # index of snow to ice transition
+                z_icehorizon = np.argwhere(rho[:, k]<830)[-1, 0]+1
+            snowthick[k] = snowthick[k]  + snowbkt[k-1] * (c.rho_water /c.rho_fresh)
 
-        # Step 2/*: shortwave radiation balance snow & ice penetration
-        thickness_m = snowc[:, k - 1] * (c.rho_water / rhofirn[:, k - 1]) + snic[
-            :, k - 1
-        ] * (c.rho_water / c.rho_ice)
-        depth_m = np.cumsum(thickness_m, 0)
-        rho[:, k] = (
-            (snowc[:, k - 1] + snic[:, k - 1] + slwc[:, k - 1])
-            * c.rho_water
-            / thickness_m
-        )
-
+        # Step 2/*: shortwave radiation balance snow & ice penetration       
         snowbkt[k] = snowbkt[k - 1]
 
         SRnet, T_ice, internal_melting = SRbalance(
@@ -344,7 +351,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
         )
         # refreezing[:,k] = zrfrz[:, k] + zsupimp[:, k]
-        z_icehorizon = int(np.floor(snowthick[k] / c.dz_ice))
 
         # if k> 1:
         #     SMB_mweq[k] =  snowfall[k] - runoff[k]             + rainfall[k] + sublimation_mweq[k]
@@ -357,7 +363,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
 
         if snowthick[k] < 0:
             snowthick[k] = 0
-            print("snowthick < 0")
             
     # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
     
