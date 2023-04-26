@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
-from numba import njit
+import warnings
+from numba import njit, jit
 
 #import lib_initialization as ini
 from lib_initialization import Struct, IniVar
+from lib_CARRA_initialization import load_CARRA_data
 #import lib_subsurface as sub
 from lib_subsurface import subsurface
 from progressbar import progressbar
@@ -61,7 +63,7 @@ from progressbar import progressbar
 # possible to overwrite the default value by defining them again in the
 # "param{kk}" struct hereunder.
 
-def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
+def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
     (
         time,
         T,
@@ -96,7 +98,7 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         meltflux,
         melt_mweq,
         sublimation_mweq,
-    ) = variables_preparation(df_aws, c)
+    ) = variables_preparation(weather_df, c)
     Tsurf_obs = T * np.nan
 
     # Converts RH from relative to water to relative to ice
@@ -209,17 +211,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         for findbalance in range(1, iter_max_EB):
             # SENSIBLE AND LATENT HEAT FLUX
 
-            #Debugging Tsurf
-            #if Tsurf[k] == 0:
-                #print("Tsurf == 0, of k =", str(k))
-                # print(Tsurf[k-1])
-                # Tsurf[k] = Tsurf[k-1]
-                # print(Tsurf[k])
-            
-            #if k == 7528:
-                #print("For k = 7528")
-                #print(findbalance)
-
             (
                 L[k],
                 LHF[k],
@@ -241,8 +232,7 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
                 z_WS[k],
                 z_T[k],
                 z_RH[k],
-                #z_0,
-                np.float64(z_0),
+                z_0,
                 c,
             )
 
@@ -263,14 +253,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
                 c,
             )
 
-            #Debugging Tsurf
-            # if Tsurf[k] == 0:
-            #     print("efter surfenergybudget")
-            # if k == 509:
-            #     print("Tsurf after surf energy budget, for k=509", str(Tsurf[k]))
-            # if k == 510:
-            #     print("Tsurf after surf energy budget, for k=510", str(Tsurf[k]))
-            
             if iter_max_EB == 1:
                 # if we are using surface temperature it might have been
                 # modified by SurfEnergyBudget. So we assign it again.
@@ -294,10 +276,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         # GF[1:c.z_ice_max] = -k_eff[1:c.z_ice_max] * (T_ice[:c.z_ice_max-1,k] - T_ice[1:c.z_ice_max, k]) / c.dz_ice
         # GFsurf[k] = - k_eff[0] * (Tsurf[k]- T_ice[1,k]) / thick_first_lay
         c.rho_fresh_snow = rho_snow
-
-        #Debugging Tsurf
-        if Tsurf[k] == 0:
-            print("Before subsurface")
 
         (
             snowc[:, k],
@@ -335,10 +313,6 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
             c
         )
 
-        #Debugging Tsurf
-        if Tsurf[k] == 0:
-            print("after subsurface")
-
         # bulk density
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
@@ -355,15 +329,13 @@ def HHsubsurf(df_aws: pd.DataFrame, c: Struct):
         #     # cumulative dry compaction
         #     H_comp[k] = H_comp(k-1) + dH_comp  #in real m
 
-        if snowthick[k] < 0:
-            snowthick[k] = 0
-            print("snowthick < 0")
             
     # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
     
     # Write parameters to csv file for main_firn.py input
     # df = pd.DataFrame({"sublimation_mweq" : sublimation_mweq, "melt_mweq" : melt_mweq, "Tsurf" : Tsurf, "snowfall" : snowfall})
     # df.to_csv("test_input_from_SEB_KAN_U.csv")
+
     
     return (
         L,
@@ -436,24 +408,24 @@ def IniRhoSnow(T, WS, c: Struct):
     return rho_snow
 
 
-def variables_preparation(df_aws: pd.DataFrame, c: Struct):
-    df_aws = df_aws.interpolate()
-    time = df_aws.index.values
+def variables_preparation(weather_df: pd.DataFrame, c: Struct):
+    weather_df = weather_df.interpolate()
+    time = weather_df.index.values
 
-    T = df_aws.AirTemperature1C.values + 273.15
-    z_T = df_aws.HeightTemperature1m.values
-    RH = df_aws.RelativeHumidity1.values
-    z_RH = df_aws.HeightHumidity1m.values
-    WS = df_aws.WindSpeed1ms.values
-    z_WS = df_aws.HeightWindSpeed1m.values
-    pres = df_aws.AirPressurehPa.values
-    SRin = df_aws.ShortwaveRadiationDownWm2.values
-    SRout = df_aws.ShortwaveRadiationUpWm2.values
-    LRin = df_aws.LongwaveRadiationDownWm2.values
-    LRout = df_aws.LongwaveRadiationUpWm2.values
-    snowfall = df_aws.Snowfallmweq.values
-    rainfall = df_aws.Rainfallmweq.values
-
+    T = weather_df.AirTemperature1C.values + 273.15
+    z_T = weather_df.HeightTemperature1m.values
+    RH = weather_df.RelativeHumidity1.values
+    z_RH = weather_df.HeightHumidity1m.values
+    WS = weather_df.WindSpeed1ms.values
+    z_WS = weather_df.HeightWindSpeed1m.values
+    pres = weather_df.AirPressurehPa.values
+    SRin = weather_df.ShortwaveRadiationDownWm2.values
+    SRout = weather_df.ShortwaveRadiationUpWm2.values
+    LRin = weather_df.LongwaveRadiationDownWm2.values
+    LRout = weather_df.LongwaveRadiationUpWm2.values
+    snowfall = weather_df.Snowfallmweq.values
+    rainfall = weather_df.Rainfallmweq.values
+        
     # Tsurf_obs = df_aws.Tsurf_K.values
     # Initialization of freshsnow density for both precipiTtion at the surface
     # and use in the subsurface scheme
@@ -471,8 +443,10 @@ def variables_preparation(df_aws: pd.DataFrame, c: Struct):
 
     # c = CalculateMeanAccumulation(time, snowfall, c)
     # Initial value for surface temperature
+
     Tsurf = np.empty((len(time)), dtype="float64") 
-    Tsurf[-1] = np.mean(T[:24]) - 2.4
+    Tsurf[0] = np.mean(T[:24]) - 2.4
+
     # The 2 m air temperature and IR skin temperature are similar during peak
     # solar irradiance, with the mean difference in temperature equal to -0.32oC
     # when incoming solar radiation is greater than 600 W m2. There is a larger
@@ -679,9 +653,6 @@ def SurfEnergyBudget(
     else:
         Tsurf = min(c.T_0, Tsurf + dTsurf)
 
-    #Debugging Tsurf
-    if Tsurf == 0:
-        print("Tsurf 0 in surfenergybudget return")
     return meltflux, Tsurf, dTsurf, EB_prev, stop
 
 
@@ -869,15 +840,16 @@ def SmoothSurf_opt(
     elif Re >= 2.5:
         ind = 2
     else:
+        print("Re is nan")
         ind = float("nan")
         print("ERROR")
-        print(Re)
-        print(u_star)
-        print(z_WS)
-        print(psi_m2)
-        print(psi_m1)
-        print(nu)
-        print(ind)
+        print("Re: ", Re)
+        print("u_star: ", u_star)
+        print("z_WS: ",z_WS)
+        print("psi_m2: ",psi_m2)
+        print("psi_m1: ",psi_m1)
+        print("nu: ",nu)
+        print("ind: ",ind)        
 
     # smooth surfaces: Andreas 1987    
     z_h, z_q = get_zh_zq(z_0, c.ch1, c.ch2, c.ch3, ind, Re, c.cq1, c.cq2, c.cq3)
@@ -935,8 +907,8 @@ def SensLatFluxes_bulk_opt(
     # translated to python by Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
    
-    psi_m1 = np.float64(0)
-    psi_m2 = np.float64(0)
+    psi_m1 = 0
+    psi_m2 = 0
 
     # will be updated later
     theta_2m = theta
@@ -957,12 +929,29 @@ def SensLatFluxes_bulk_opt(
                 if snowthick > 0 
                 else RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
             )  
-        #Debugging Tsurf    
-        if Tsurf == 0:
-            print("Tsurf 0 before es ice surf",str(Tsurf))       
+  
+        # try:
+        #     es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0) 
+        #     q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
+        # except:
+        #     print("Error. es_ice_surf")
+        #     return -999, 0, 0, theta, q, WS, 0
+        
+        # if np.isnan(es_ice_surf):
+        #     print("es_ice_surf is nan. Gets assigned 0.")
+        #     es_ice_surf = 0
+        #q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
+        # DOES NOT SEEM TO BE A GOOD IDEA WITH NUMBA ON ES ICE SURF - UPDATE
+        #es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0)
+        es_ice_surf =  (10 ** (
+        -9.09718 * (c.T_0 / Tsurf - 1.0)
+            - 3.56654 * np.log10(c.T_0 / Tsurf)
+            + 0.876793 * (1.0 - Tsurf / c.T_0)
+            + np.log10(c.es_0)
+        )) 
 
-        es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0)        
         q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
+
         L = 10e4
 
         if (theta >= Tsurf) & (WS >= c.WS_lim):  # stable stratification
@@ -976,7 +965,6 @@ def SensLatFluxes_bulk_opt(
                 psi_q = get_psi_q_stable(c.aa, c.bb, c.cc, c.dd, L, z_q)
                 psi_q2 = get_psi_q2_stable(c.aa, c.bb, c.cc, c.dd, L, z_RH)
 
-                # Yttre if-sats ser inte ut att ha påverkan, men kanske ändå har det?
                 if WS < c.smallno:
                     z_h = 1e-10
                     z_q = 1e-10
@@ -985,8 +973,8 @@ def SensLatFluxes_bulk_opt(
                         SmoothSurf_opt(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
                         if snowthick > 0 
                         else RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
-                    )                   
-
+                    )
+                
                 th_star, q_star = get_th_star_q_star(
                     c.kappa, theta,
                     Tsurf, z_T,
@@ -999,7 +987,6 @@ def SensLatFluxes_bulk_opt(
 
                 L_prev = L
                 # L = u_star**2 * theta_v  / ( 3.9280 * th_star*(1 + 0.6077*q_star))
-
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
 
                 if (L < c.smallno) | (abs((L_prev - L)) < c.L_dif):
@@ -1077,11 +1064,7 @@ def SensLatFluxes_bulk_opt(
         theta_2m = theta
         q_2m = q
         ws_10m = WS
-
-    #Debugging Tsurf
-    if Tsurf == 0:
-        print("Tsurf 0 in senslat")
-
+     
     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
 
 def SpecHumSat(RH, T, pres, c: Struct):
@@ -1113,8 +1096,6 @@ def SpecHumSat(RH, T, pres, c: Struct):
         + 0.876793 * (1.0 - T / c.T_0)
         + np.log10(c.es_0)
     )  # saturation vapour pressure below 0 C (hPa)
-
-    #Fredrika: why can't I call this one here: es_ice = get_es_ice_surf(T, c.T_0, c.es_0) ?
 
     q_sat = (
         c.es * es_wtr / (pres - (1 - c.es) * es_wtr)
@@ -1187,12 +1168,13 @@ def get_L(u_star, theta, es, q, g, kappa, th_star, q_star):
 # Returns: value for es_ice_surf
 @njit#(fastmath=True)
 def get_es_ice_surf(Tsurf, cT_0, es_0):
-    return (10 ** (
+    es_ice_surf =  (10 ** (
         -9.09718 * (cT_0 / Tsurf - 1.0)
             - 3.56654 * np.log10(cT_0 / Tsurf)
             + 0.876793 * (1.0 - Tsurf / cT_0)
             + np.log10(es_0)
         )) 
+    return es_ice_surf
 
 # Several functions computing values for psi in a faster way. 
 # Done in separate functions to maintain correct results.

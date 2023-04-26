@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from lib_initialization import ImportConst, load_json
 from lib_seb_smb_model import HHsubsurf
+from lib_CARRA_initialization import load_CARRA_data
 from os import mkdir
 
 def run_SEB_firn():
@@ -25,16 +26,26 @@ def run_SEB_firn():
     weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
     weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
 
+    #data_source = 'CARRA'
+    data_source = 'AWS'
+
     # Create struct c with all constant values
     c = set_constants(weather_station)
 
-    # DataFrame with the weather data is created
-    df_aws = io.load_promice(weather_data_input_path)[:5999]
-    df_aws = df_aws.set_index("time").resample("H").mean()
-
+    if data_source == 'CARRA':
+        # Data with weather data is created, from CARRA data
+        weather_df = load_CARRA_data(weather_station)[:6000]#[54327:(54327 + 6000)]
+        weather_df = weather_df.set_index("time")
+        weather_df.index = pd.to_datetime(weather_df.index)
+    
+    if data_source == 'AWS':
+        # DataFrame with the weather data is created, from AWS data
+        weather_df = io.load_promice(weather_data_input_path)[:2000]
+        weather_df = weather_df.set_index("time").resample("H").mean()
+    
     # DataFrame for the surface is created, indexed with time from df_aws
     df_surface = pd.DataFrame()
-    df_surface["time"] = df_aws.index
+    df_surface["time"] = weather_df.index
     df_surface = df_surface.set_index("time")
 
     # The surface values are received
@@ -65,7 +76,7 @@ def run_SEB_firn():
         dH_comp,
         snowbkt,
         compaction,
-    ) = HHsubsurf(df_aws, c)
+    ) = HHsubsurf(weather_df, c)
 
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
     depth_act = np.cumsum(thickness_act, 0)
@@ -87,24 +98,24 @@ def run_SEB_firn():
             i = i + 1
     
     c.OutputFolder = output_path
-    # io.write_2d_netcdf(snic, 'snic', depth_act, df_aws.index, c)
-    io.write_2d_netcdf(slwc, 'slwc', depth_act, df_aws.index, c)
-    #io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_aws.index, c)
+    # io.write_2d_netcdf(snic, 'snic', depth_act, weather_df.index, c)
+    io.write_2d_netcdf(slwc, 'slwc', depth_act, weather_df.index, c)
+    #io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, weather_df.index, c)
     io.write_1d_netcdf(df_surface, c)
-    io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_aws.index, c)
-    io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_aws.index, c)
-    # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, df_aws.index, RunName)
-    # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_aws.index, RunName)
-    # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_aws.index, RunName)
-    # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_aws.index, RunName)
+    io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, weather_df.index, c)
+    io.write_2d_netcdf(T_ice, 'T_ice', depth_act, weather_df.index, c)
+    # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, weather_df.index, RunName)
+    # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, weather_df.index, RunName)
+    # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, weather_df.index, RunName)
+    # io.write_2d_netcdf(compaction, 'compaction', depth_act, weather_df.index, RunName)
 
     # Plot output
-    # plt.close("all")
-    # lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
-    # lpl.plot_summary(df_surface, c, 'SEB_output')
-    # lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
-    # lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
-    # lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+    plt.close("all")
+    #lpl.plot_summary(weather_df, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+    lpl.plot_summary(df_surface, c, 'SEB_output')
+    lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
+    lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
+    lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
 
 
 
@@ -136,8 +147,8 @@ def set_constants(weather_station):
     c.dt_obs = 3600   
     return c 
 
-
-run_SEB_firn()
+if __name__ == "__main__":
+    run_SEB_firn()
 
 
     
