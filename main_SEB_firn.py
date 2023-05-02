@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 from lib_initialization import ImportConst, load_json
 from lib_seb_smb_model import HHsubsurf
-from lib_CARRA_initialization import load_CARRA_data
+from lib_CARRA_initialization import load_CARRA_data_opt
 from os import mkdir
 
 def run_SEB_firn():
@@ -34,15 +34,19 @@ def run_SEB_firn():
 
     if data_source == 'CARRA':
         # Data with weather data is created, from CARRA data
-        weather_df = load_CARRA_data(weather_station)[:6000]#[54327:(54327 + 6000)]
-        weather_df = weather_df.set_index("time")
-        weather_df.index = pd.to_datetime(weather_df.index)
+        weather_df = load_CARRA_data_opt(weather_station)[55200:58199]   
+        print(weather_df.index[0])
+        print(weather_df.index[-1])
+
     
     if data_source == 'AWS':
         # DataFrame with the weather data is created, from AWS data
-        weather_df = io.load_promice(weather_data_input_path)[:2000]
+        weather_df = io.load_promice(weather_data_input_path)[3858:(3858 + 8999)]
         weather_df = weather_df.set_index("time").resample("H").mean()
-    
+        weather_df = weather_df.interpolate()
+        print(weather_df.index[0])
+        print(weather_df.index[-1])
+
     # DataFrame for the surface is created, indexed with time from df_aws
     df_surface = pd.DataFrame()
     df_surface["time"] = weather_df.index
@@ -59,6 +63,10 @@ def run_SEB_firn():
         df_surface["Re"],
         df_surface["melt_mweq"],
         df_surface["sublimation_mweq"],
+        df_surface["SRin"],
+        df_surface["SRout"],
+        df_surface["LRin"],
+        df_surface["LRout_mdl"],
         snowc,
         snic,
         slwc,
@@ -75,7 +83,7 @@ def run_SEB_firn():
         pgrndhflx,
         dH_comp,
         snowbkt,
-        compaction,
+        compaction
     ) = HHsubsurf(weather_df, c)
 
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
@@ -113,9 +121,11 @@ def run_SEB_firn():
     plt.close("all")
     #lpl.plot_summary(weather_df, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
     lpl.plot_summary(df_surface, c, 'SEB_output')
+
     lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+
 
 
 

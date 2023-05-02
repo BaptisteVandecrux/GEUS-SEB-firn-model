@@ -5,7 +5,7 @@ from numba import njit, jit
 
 #import lib_initialization as ini
 from lib_initialization import Struct, IniVar
-from lib_CARRA_initialization import load_CARRA_data
+from lib_CARRA_initialization import load_CARRA_data_opt
 #import lib_subsurface as sub
 from lib_subsurface import subsurface
 from progressbar import progressbar
@@ -347,6 +347,10 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         Re,
         melt_mweq,
         sublimation_mweq,
+        SRin,
+        SRout,
+        LRin,
+        LRout,
         snowc,
         snic,
         slwc,
@@ -363,7 +367,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         pgrndhflx,
         dH_comp,
         snowbkt,
-        compaction,
+        compaction
     )
 
 
@@ -409,7 +413,6 @@ def IniRhoSnow(T, WS, c: Struct):
 
 
 def variables_preparation(weather_df: pd.DataFrame, c: Struct):
-    weather_df = weather_df.interpolate()
     time = weather_df.index.values
 
     T = weather_df.AirTemperature1C.values + 273.15
@@ -425,7 +428,7 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     LRout = weather_df.LongwaveRadiationUpWm2.values
     snowfall = weather_df.Snowfallmweq.values
     rainfall = weather_df.Rainfallmweq.values
-        
+
     # Tsurf_obs = df_aws.Tsurf_K.values
     # Initialization of freshsnow density for both precipiTtion at the surface
     # and use in the subsurface scheme

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from lib_initialization import load_json
-from lib_CARRA_initialization import load_CARRA_data
+from lib_CARRA_initialization import load_CARRA_data_opt
 
 # Function to compare the output data from AWS and CARRA
 def compare_data():
@@ -18,7 +18,7 @@ def compare_data():
     weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
     weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
 
-    df_aws = io.load_promice(weather_data_input_path)[:length]
+    df_aws = io.load_promice(weather_data_input_path)[3858:(3858 + 8999)]
     df_aws = df_aws.set_index("time").resample("H").mean()
     df_aws = df_aws.interpolate()
  
@@ -79,11 +79,12 @@ def compare_data():
     end_index = 54327 + (len(time_AWS))
  
     weather_station = 'KAN_U'
-    weather_df = load_CARRA_data(weather_station)[start_index:end_index]
-    weather_df = weather_df.set_index("time")
-    weather_df.index = pd.to_datetime(weather_df.index)
-    time_CARRA = weather_df.index.values
-    print("CARRA, start date: ",time_CARRA[0], ", end date: ", time_CARRA[-1] )
+    #weather_df = load_CARRA_data(weather_station)[start_index:end_index]
+    weather_df = load_CARRA_data_opt(weather_station)[55200:58199]   
+    #weather_df = weather_df.set_index("time")
+    #weather_df.index = pd.to_datetime(weather_df.index)
+    #time_CARRA = weather_df.index.values
+    #print("CARRA, start date: ",weather_df['time'][0], ", end date: ",weather_df['time'][-1] )
 
     T_CARRA = weather_df.AirTemperature1C.values + 273.15
     z_T_CARRA = weather_df.HeightTemperature1m.values
@@ -102,7 +103,7 @@ def compare_data():
     i_AWS = 0
     for i in range(0,10):
        print("compare aws and carra:")
-       print("time: ",time_AWS3[i], time_CARRA[i])
+       print("time: ",time_AWS3[i], weather_df.index[i])
        print("temp: ",T_AWS3[i], T_CARRA[i])
        print("z t: ",z_T_AWS3[i], z_T_CARRA[i])
        print("rh: ",RH_AWS3[i], RH_CARRA[i])
