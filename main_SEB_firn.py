@@ -17,6 +17,7 @@ from lib_initialization import ImportConst, load_json
 from lib_seb_smb_model import HHsubsurf
 from lib_CARRA_initialization import load_CARRA_data_opt
 from os import mkdir
+import time
 
 def run_SEB_firn():
     # Read paths for weather input and output file
@@ -26,8 +27,8 @@ def run_SEB_firn():
     weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
     weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
 
-    #data_source = 'CARRA'
-    data_source = 'AWS'
+    data_source = 'CARRA'
+    #data_source = 'AWS'
 
     # Create struct c with all constant values
     c = set_constants(weather_station)
@@ -52,7 +53,7 @@ def run_SEB_firn():
     df_surface["time"] = weather_df.index
     df_surface = df_surface.set_index("time")
 
-    # The surface values are received
+    # The surface values are received 
     (
         df_surface["L"],
         df_surface["LHF"],
@@ -127,6 +128,20 @@ def run_SEB_firn():
     lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
 
 
+    # Write results to csv file
+    # data_to_csv = pd.DataFrame(df_surface["L"])
+    # data_to_csv = data_to_csv.assign(LHF = df_surface["LHF"])
+    # data_to_csv = data_to_csv.assign(SHF = df_surface["SHF"])
+    # data_to_csv = data_to_csv.assign(theta_2m = df_surface["theta_2m"])
+    # data_to_csv = data_to_csv.assign(q_2m = df_surface["q_2m"])
+    # data_to_csv = data_to_csv.assign(ws_10m = df_surface["ws_10m"])
+    # data_to_csv = data_to_csv.assign(Re = df_surface["Re"])
+    # data_to_csv = data_to_csv.assign(melt_mweq = df_surface["melt_mweq"])
+    # data_to_csv = data_to_csv.assign(sublimation_mweq = df_surface["sublimation_mweq"])
+
+    # filename = 'runsebfirn_output_opt12.2_200lay_short.csv'
+    # filename= '21res__opt_manual.csv'
+    # pd.DataFrame(data_to_csv).to_csv(filename)
 
 
 # Constant definition
@@ -144,8 +159,8 @@ def set_constants(weather_station):
     c.z_max = 50
     c.dz_ice = 1
     NumLayer = int(c.z_max / c.dz_ice)
-    c.num_lay = NumLayer
-    #c.num_lay = 200
+    #c.num_lay = NumLayer
+    c.num_lay = 200
     c.verbose = 1
     c.Tdeep = 250.15
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;

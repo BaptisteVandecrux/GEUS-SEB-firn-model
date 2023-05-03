@@ -1,11 +1,16 @@
 import __init__
-import time
-from main_SEB_firn import run_SEB_firn, set_constants
+import lib_io as io
 import lib_seb_smb_model as seb
 import numpy as np
+import pandas as pd
+import time
 
-def run_measure():
+from main_SEB_firn import run_SEB_firn, set_constants
+from main_firn import run_main_firn_old, run_main_firn_parallel
+
+def run_measure_SEB_firn():
     time_array = []
+    print("Measuring run_SEB_firn (main_SEB_firn). \nHave you controlled num of layers? To plot or not to plot?")
 
     for i in range(10):
         # Run test, keep going if error
@@ -15,7 +20,7 @@ def run_measure():
             cpu_end_time = time.process_time()
             cpu_time = (cpu_end_time - cpu_start_time)
             time_array.append(cpu_time)
-            print(time_array)
+            print("time in measure: ", time_array)
         except Exception as e:
             print (e)
             pass
@@ -31,9 +36,65 @@ def run_measure():
     # for i in range(len(time_array)):
     #     print(time_array[i])
 
-    # print(time_array)
-    # print("Mean:")
-    # print(str(np.mean(time_array)))
+    print(time_array)
+    print("Mean:")
+    print(str(np.mean(time_array)))
+
+
+def measure_firn_parallel():
+    print("--- Measure firn parallel running ---")
+    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M"]
+    site_list = ["KAN_U", "KAN_M"]
+    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M"]
+    time_list = []
+    numb_loops = 10
+    
+    for i in range(numb_loops):
+        #Parallel running
+        parallel_start_time = time.process_time()
+        run_name_list = run_main_firn_parallel(site_list)
+        parallel_end_time = time.process_time()
+        parallel_time = (parallel_end_time - parallel_start_time)
+        time_list.append(parallel_time)
+
+    return time_list
+
+
+def measure_firn_old():
+    print("Are you plotting anything?")
+    print("--- Measure firn old running ---")
+    #site_list = ["KAN_U", "KAN_M"]
+    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M"]
+    site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M"]
+
+    time_list = []
+    tot_time = 0
+    numb_loops = 10
+    for i in range(numb_loops):
+        time_old_start = time.process_time()
+        run_name_list = run_main_firn_old(site_list)
+        time_old_end = time.process_time()
+        old_time = (time_old_end - time_old_start)
+        time_list.append(old_time)
+        tot_time = old_time + tot_time
+
+    mean = tot_time / numb_loops 
+    std = np.std(np.array(time_list))
+
+    print("Old code, mean and std:")
+    print(mean)
+    print(std)
+    return(time_list)
+
+def run_all_measures_firn():
+    # old_loop_time = measure_firn_old()
+    # print("Old loop time:")
+    # print(old_loop_time)
+
+    parallel_time = measure_firn_parallel()
+    print("Parallel time: ")
+    print(parallel_time)
+
 
 def measure_SensLatFluxes():
     '''Measure time diff between optimized and not optimized SensLatFluxes,
@@ -41,7 +102,6 @@ def measure_SensLatFluxes():
 
     time_not_opt = []
     time_opt = []
-
     WS= 4.88
     nu= 1.5471445341359545e-05
     q = 0.002983881449656623
@@ -104,20 +164,19 @@ def measure_SensLatFluxes():
         cpu_time_notopt = (cpu_end_notopt - cpu_start_notopt)
         time_not_opt.append(cpu_time_notopt)
 
-    print("Optimized code: ")
-   # print(time_opt)
-    print("Mean:")
+    print("Optimized code, mean:")
     print(str(np.mean(time_opt)))
 
-    print("Not optimized code: ")
-   # print(time_not_opt)
-    print("Mean:")
+    print("Not optimized code, mean:")
     print(str(np.mean(time_not_opt)))
 
 
-#measure_SensLatFluxes()
-
-run_measure()
-
-
+if __name__ == '__main__':
+    #measure_SensLatFluxes()
+    #run_measure_SEB_firn()
+    #run_measure_firn()
+    #compare_full_simulation()
+    #check_diff()
+    run_all_measures_firn()
+    
 
