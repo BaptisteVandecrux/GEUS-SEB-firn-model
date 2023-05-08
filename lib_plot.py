@@ -56,7 +56,7 @@ def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
         slwc="Liquid water content (mm m$^{-3}$)",
         density_bulk="Bulk density (kg m$^{-3}$)",
         rhofirn="Firn density (kg m$^{-3}$)",
-        T_ice="Subsurface temperature ($^{o}C$)",
+        T_ice="Subsurface temperature (K)",
     )
 
     cmap_list = dict(
@@ -69,14 +69,26 @@ def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
     fig.suptitle(site)
 
     # plotting firn model
-    im = ax.pcolormesh(
+    if var_name == 'T_ice':
+        im = ax.pcolormesh(
         time_grid[:, 0::6],
         depth[:, 0::6],
         var_array[:, 0::6][:, :-1], 
         cmap=cmap_list[var_name],
-        vmin=np.percentile(var_array, 5),
-        vmax=np.percentile(var_array, 95),
+        # vmin=np.percentile(var_array, 5),
+        # vmax=np.percentile(var_array, 95),
+        vmin=250,
+        vmax=273.15,
     )
+    else:
+        im = ax.pcolormesh(
+            time_grid[:, 0::6],
+            depth[:, 0::6],
+            var_array[:, 0::6][:, :-1], 
+            cmap=cmap_list[var_name],
+            vmin=np.percentile(var_array, 5),
+            vmax=np.percentile(var_array, 95),
+        )
     if not zero_surf:
         ax.plot(time[0:len(surface_height):6], surface_height[0::6], linewidth=2, color="k")
     plt.colorbar(im, label=label_list[var_name], ax=ax)

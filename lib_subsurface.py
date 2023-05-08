@@ -1473,16 +1473,16 @@ def update_tempdiff_params_opt(
     # the snow and ice heat capacity. Mind the repeated index for the last
     # layer. Here zcapa is still volumetric since everything on the right hand
     # side has been deivided by 'totalV'. It is in J/m**3/K.
-    # zcapa = (
-    #     snow_frac_lay_1 * zsn_capaF(prhofirn, ptsoil)
-    #     + snow_frac_lay_2
-    #     * zsn_capaF(
-    #         np.append(prhofirn[1:], prhofirn[-1]), np.append(ptsoil[1:], ptsoil[-1])
-    #     )
-    #     + ice_frac * zso_capa
-    # )
+    zcapa = (
+        snow_frac_lay_1 * zsn_capaF(prhofirn, ptsoil)
+        + snow_frac_lay_2
+        * zsn_capaF(
+            np.append(prhofirn[1:], prhofirn[-1]), np.append(ptsoil[1:], ptsoil[-1])
+        )
+        + ice_frac * zso_capa
+    )
 
-    zcapa = compute_zcapa(snow_frac_lay_1, prhofirn, ptsoil,snow_frac_lay_2, ice_frac, zso_capa)
+    #zcapa = compute_zcapa(snow_frac_lay_1, prhofirn, ptsoil,snow_frac_lay_2, ice_frac, zso_capa)
 
     # thermal conductivity of the layer calculated as the inverse of the np.sum of
     # the inversed conductivities.

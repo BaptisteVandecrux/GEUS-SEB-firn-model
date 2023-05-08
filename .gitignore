@@ -2,7 +2,9 @@ side analysis
 *.nc
 *.png
 Input/Weather data
+Input/KAN_U_M_CARRA_data
 Output_test_files
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
