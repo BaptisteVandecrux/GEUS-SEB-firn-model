@@ -330,7 +330,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         #     # bottom of the collumn remains at constant depth
         #     # cumulative dry compaction
         #     H_comp[k] = H_comp(k-1) + dH_comp  #in real m
-        
+
         if snowthick[k] < 0:
             snowthick[k] = 0
             print("snowthick < 0")
@@ -953,7 +953,7 @@ def SensLatFluxes_bulk_opt(
             - 3.56654 * np.log10(c.T_0 / Tsurf)
             + 0.876793 * (1.0 - Tsurf / c.T_0)
             + np.log10(c.es_0)
-        )) 
+         )) 
 
         q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
 

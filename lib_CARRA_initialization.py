@@ -42,12 +42,14 @@ def load_CARRA_data_opt(weather_station: str):
             # the first two time steps (T00 and T03) were left as nan by ffill 
             # and need to be filled with zeros
             aws_ds[var] = aws_ds[var].fillna(0)
-
     
     # unit conversion
     aws_ds['al'] = aws_ds['al']/100
     aws_ds['sp'] = aws_ds['sp']/100
+
     aws_ds['ssrd'] = aws_ds['ssrd'] / (3 * 3600)
+
+
     aws_ds['strd'] = aws_ds['strd'] / (3 * 3600)
 
     # deriving LRout (surface thermal radiation upward = stru)
@@ -74,6 +76,13 @@ def load_CARRA_data_opt(weather_station: str):
                             'ssrd': 'ShortwaveRadiationDownWm2',
                             'strd': 'LongwaveRadiationDownWm2'          
                         })
+
+    # Fill null values with 0
+    df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2'].fillna(0)
+    df_carra['ShortwaveRadiationUpWm2'] = df_carra['ShortwaveRadiationUpWm2'].fillna(0)
+
+    # filename = 'new_df_carra3.csv'
+    # df_carra.to_csv(filename)
 
     return df_carra
 

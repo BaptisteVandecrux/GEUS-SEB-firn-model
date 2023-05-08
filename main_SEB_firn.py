@@ -126,7 +126,9 @@ def run_SEB_firn():
     lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
-
+    
+    melt_mweq_cum = df_surface["melt_mweq"].cumsum()
+    print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
 
     # Write results to csv file
     # data_to_csv = pd.DataFrame(df_surface["L"])

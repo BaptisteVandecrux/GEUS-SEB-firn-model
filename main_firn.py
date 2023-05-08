@@ -304,7 +304,7 @@ def run_GEUS_model_old(site, filename):
             dH_comp[i],
             snowbkt[i],
             compaction[:, i],
-        ) = sub.subsurface(
+        ) = sub.subsurface_opt(
             Tsurf[i].copy(),
             grndc[:, i - 1].copy(),
             grndd[:, i - 1].copy(),
