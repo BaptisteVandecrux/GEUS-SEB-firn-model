@@ -43,16 +43,14 @@ def run_measure_SEB_firn():
 
 def measure_firn_parallel():
     print("--- Measure firn parallel running ---")
-    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M"]
     site_list = ["KAN_U", "KAN_M"]
-    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M"]
     time_list = []
     numb_loops = 10
     
     for i in range(numb_loops):
         #Parallel running
         parallel_start_time = time.process_time()
-        run_name_list = run_main_firn_parallel(site_list)
+        run_main_firn_parallel(site_list)
         parallel_end_time = time.process_time()
         parallel_time = (parallel_end_time - parallel_start_time)
         time_list.append(parallel_time)
@@ -63,8 +61,6 @@ def measure_firn_parallel():
 def measure_firn_old():
     print("Are you plotting anything?")
     print("--- Measure firn old running ---")
-    #site_list = ["KAN_U", "KAN_M"]
-    #site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M", "KAN_U", "KAN_M"]
     site_list = ["KAN_U", "KAN_M", "KAN_U", "KAN_M"]
 
     time_list = []
@@ -72,7 +68,7 @@ def measure_firn_old():
     numb_loops = 10
     for i in range(numb_loops):
         time_old_start = time.process_time()
-        run_name_list = run_main_firn_old(site_list)
+        run_main_firn_old(site_list)
         time_old_end = time.process_time()
         old_time = (time_old_end - time_old_start)
         time_list.append(old_time)

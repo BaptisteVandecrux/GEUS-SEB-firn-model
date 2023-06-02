@@ -5,7 +5,7 @@ import json
 import numpy as np
 
 from main_SEB_firn import set_constants
-from lib_seb_smb_model import SensLatFluxes_bulk_old, SensLatFluxes_bulk_opt, HHsubsurf, SmoothSurf_opt, HHsubsurf_test
+from lib_seb_smb_model import SensLatFluxes_bulk_old, SensLatFluxes_bulk_opt, HHsubsurf, SmoothSurf_opt
 
 import lib_io as io
 from lib_initialization import load_json
@@ -114,20 +114,8 @@ class SensLatFluxesTestCase(unittest.TestCase):
             assert Re == Re_opt
 
 
-def writeArray():
-    arr = [21.1, 21.2, 20.7, 20.9, 32.5, 32.5, 32.3, 34.0]
-
-    a = np.array(arr)
-    std = np.std(a)
-    for i in range(len(arr)):
-        print(arr[i])
-
-    print(std)
-
 def writeOutput():
         '''Test and compare output from SensLatFluxes with old code output'''
-        # with open("parameters.json") as parameter_file:
-        #     parameters = json.load(parameter_file)
         parameters = load_json()
         weather_station = str(parameters['weather_station'])
         weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
@@ -192,191 +180,15 @@ def writeOutput():
         new_data = new_data.assign(new_ws_10m = new_ws_10m)
         new_data = new_data.assign(new_Re = new_Re)
 
-        # filename = 'res_SensLatFlux_KAN_U.csv'
-        # pd.DataFrame(new_data).to_csv(filename)
+        filename = 'res_SensLatFlux_comparision.csv'
+        pd.DataFrame(new_data).to_csv(filename)
 
-        # print("End of comparision.")
-
-        #Print differences between old output to newly computed output
-        print("Old L:")
-        print(old_L)
-        print("New L:")
-        print(new_L)
-
-        print("Old LHF: ")
-        print(old_LHF)
-        print("New LHF: ")
-        print(new_LHF)
-
-        print("Old SHF: ")
-        print(old_SHF)
-        print("New SHF: ")
-        print(new_SHF)
-        
-        print("Old theta_2m: ")
-        print(old_theta_2m)
-        print("New theta_2m: ")
-        print(new_theta_2m)
-
-        print("Old q_2m: ")
-        print(old_q_2m)
-        print("New q_2m: ")
-        print(new_q_2m)
-
-        print("Old ws_10m: ")
-        print(old_ws_10m)
-        print("New ws_10m: ")
-        print(new_ws_10m) 
-
-        print("Old Re: ")
-        print(old_Re)
-        print("New Re: ")
-        print(new_Re)
-
-def test_func():
-    print("Har du uppdaterat iteration, namn, modell, layers?")
-
-    # Set model 1 och 2 in lib_seb_smb_model
-    SensLatVersionList = [1,2]
-    Iteration = 45
-    Model1 = 'opt'
-    Model2 = 'opt'
-    Layers = '200'
-
-    for i in range(0,len(SensLatVersionList)):
-        # Read paths for weather input and output file
-        parameters = load_json()
-        output_path = str(parameters['output_path'])
-        weather_station = str(parameters['weather_station'])
-        weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
-        weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
-
-        # Create struct c with all constant values
-        c1 = set_constants(weather_station)
-        c2 = set_constants(weather_station)
-
-        # DataFrame with the weather data is created
-        df_aws = io.load_promice(weather_data_input_path)[:10000]
-        df_aws = df_aws.set_index("time").resample("H").mean()
-
-        # DataFrame for the surface is created, indexed with time from df_aws
-        df_surface = pd.DataFrame()
-        df_surface["time"] = df_aws.index
-        df_surface = df_surface.set_index("time")
-
-        print("Simulation: ", SensLatVersionList[i])
-
-        # Write results to one csv file
-        if SensLatVersionList[i] == 1:
-             # The surface values are received 
-            print("In senslatversion == 1")
-            (
-            df_surface["L"],
-            df_surface["LHF"],
-            df_surface["SHF"],
-            df_surface["theta_2m"],
-            df_surface["q_2m"],
-            df_surface["ws_10m"],
-            df_surface["Re"],
-            df_surface["melt_mweq"],
-            df_surface["sublimation_mweq"],
-            snowc,
-            snic,
-            slwc,
-            T_ice,
-            zrfrz,
-            rhofirn,
-            zsupimp,
-            dgrain,
-            zrogl,
-            Tsurf,
-            grndc,
-            grndd,
-            pgrndcapc,
-            pgrndhflx,
-            dH_comp,
-            snowbkt,
-            compaction,
-            ) = HHsubsurf_test(df_aws, c1, SensLatVersionList[i])
-
-            data_to_csv1 = pd.DataFrame(df_surface["L"])
-            data_to_csv1 = data_to_csv1.assign(LHF = df_surface["LHF"])
-            data_to_csv1 = data_to_csv1.assign(SHF = df_surface["SHF"])
-            data_to_csv1 = data_to_csv1.assign(theta_2m = df_surface["theta_2m"])
-            data_to_csv1 = data_to_csv1.assign(q_2m = df_surface["q_2m"])
-            data_to_csv1 = data_to_csv1.assign(ws_10m = df_surface["ws_10m"])
-            data_to_csv1 = data_to_csv1.assign(Re = df_surface["Re"])
-            data_to_csv1 = data_to_csv1.assign(melt_mweq = df_surface["melt_mweq"])
-            data_to_csv1 = data_to_csv1.assign(sublimation_mweq = df_surface["sublimation_mweq"])
-
-            filename1 = str(Iteration) + 'res_' + str(SensLatVersionList[i]) + '_' + Model1 + '.csv'
-            pd.DataFrame(data_to_csv1).to_csv(filename1)
-        
-        if SensLatVersionList[i] == 2:
-             # The surface values are received 
-            print("In senslatversion == 2")
-            (
-            df_surface["L"],
-            df_surface["LHF"],
-            df_surface["SHF"],
-            df_surface["theta_2m"],
-            df_surface["q_2m"],
-            df_surface["ws_10m"],
-            df_surface["Re"],
-            df_surface["melt_mweq"],
-            df_surface["sublimation_mweq"],
-            snowc,
-            snic,
-            slwc,
-            T_ice,
-            zrfrz,
-            rhofirn,
-            zsupimp,
-            dgrain,
-            zrogl,
-            Tsurf,
-            grndc,
-            grndd,
-            pgrndcapc,
-            pgrndhflx,
-            dH_comp,
-            snowbkt,
-            compaction,
-            ) = HHsubsurf_test(df_aws, c2, SensLatVersionList[i])
-
-            data_to_csv2 = pd.DataFrame(df_surface["L"])
-            data_to_csv2 = data_to_csv2.assign(LHF = df_surface["LHF"])
-            data_to_csv2 = data_to_csv2.assign(SHF = df_surface["SHF"])
-            data_to_csv2 = data_to_csv2.assign(theta_2m = df_surface["theta_2m"])
-            data_to_csv2 = data_to_csv2.assign(q_2m = df_surface["q_2m"])
-            data_to_csv2 = data_to_csv2.assign(ws_10m = df_surface["ws_10m"])
-            data_to_csv2 = data_to_csv2.assign(Re = df_surface["Re"])
-            data_to_csv2 = data_to_csv2.assign(melt_mweq = df_surface["melt_mweq"])
-            data_to_csv2 = data_to_csv2.assign(sublimation_mweq = df_surface["sublimation_mweq"])
-
-            filename2 = str(Iteration) + 'res_' + str(SensLatVersionList[i]) + '_' + Model2 + '.csv'
-            pd.DataFrame(data_to_csv2).to_csv(filename2)
-        
-    path_data1 = 'C:\\Users\\brink\\Documents\\Exjobb\\GEUS-SEB-firn-model\\' + filename1
-    #path_data1 = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\Output_test_files\Run 25\25res_1_opt.csv'
-    data1 = pd.read_csv(path_data1, index_col=False)
-    path_data2 = 'C:\\Users\\brink\\Documents\\Exjobb\\GEUS-SEB-firn-model\\' + filename2
-    #path_data2 = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\Output_test_files\Run 26\26res_1_opt.csv'    
-    data2 = pd.read_csv(path_data2, index_col=False)
-
-    diff_df = pd.DataFrame(columns= ['L','LHF','SHF','theta_2m','q_2m','ws_10m','Re','melt_mweq','sublimation_mweq'])
-    for i in progressbar(range(len(data1))):
-        for column in diff_df.columns:
-            difference = abs(data1.at[i,column]- data2.at[i,column])
-            diff_df.at[i,column] = difference 
-    
-    filename_diff = str(Iteration) + 'res_diff_' + Layers + 'lay_' + Model1 + '_' + Model2 + '.csv'
-
-    diff_df.to_csv(filename_diff)
+        print("End of comparision.")
         
 
 def print_diff():
-    path = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\4resultdiff_200lay.csv'
+    # to get info about how big calculated differences are
+    path = 'path_to_file_with_calculated_differences.csv'
     diff_df = pd.read_csv(path)
     print(diff_df['L'].describe())
     print(diff_df['LHF'].describe())
@@ -390,14 +202,18 @@ def print_diff():
     print(diff_df['sublimation_mweq'].describe())
 
 def compare_SensLatFluxes_output():
+    # compare SensLatFluxes outputs from two runs
+    # set iteration number, which models are used, number of layers
     Iteration = 43
     Model1 = 'opt'
     Model2 = 'opt'
     Layers = '200'
-    path_opt1 = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\Output_test_files\Run 18\18res_1_old.csv'
+
+    #paths to files to compare
+    path_opt1 = 'path_to_first_file.csv'
     opt_2_data = pd.read_csv(path_opt1, index_col=False)
 
-    path_old = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\Output_test_files\Run 16\16res_1_old.csv'
+    path_old = 'path_to_second_file.csv'
     old_data = pd.read_csv(path_old, index_col=False)
 
     diff_df = pd.DataFrame(columns= ['L','LHF','SHF','theta_2m','q_2m','ws_10m','Re','melt_mweq','sublimation_mweq'])
@@ -405,7 +221,6 @@ def compare_SensLatFluxes_output():
         for column in diff_df.columns:
             difference = abs(opt_2_data.at[i,column]-old_data.at[i,column])
             diff_df.at[i,column] = difference 
-        #diff_df = pd.DataFrame([[abs(opt_data.at[i, column] - old_data.at[i, column]) for column in diff_df.columns]], columns=diff_df.columns)
     
     filename = str(Iteration) + '_comp_diff_' + Layers + 'lay_' + Model1 + '_' + Model2 +'_manual.csv'
     diff_df.to_csv(filename)
@@ -414,7 +229,6 @@ def compare_SensLatFluxes_output():
 if __name__ == '__main__':
     #unittest.main()
     #writeOutput()
-    writeArray()
     #print_diff()
-    #compare_SensLatFluxes_output()
+    compare_SensLatFluxes_output()
     #test_func()
