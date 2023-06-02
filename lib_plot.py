@@ -291,7 +291,8 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         ax[count].set_xlim((df.index[0], df.index[-1]))
         
         # if var == "L":    #Changing the y-axis for L
-        #     ax[count].set_ylim((-2000, 6000))
+        #     ax[count].set_ylim((-30000, 30000))
+
 
         count = count + 1
 

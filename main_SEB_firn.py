@@ -17,7 +17,6 @@ from lib_initialization import ImportConst, load_json
 from lib_seb_smb_model import HHsubsurf
 from lib_CARRA_initialization import load_CARRA_data_opt
 from os import mkdir
-import time
 
 def run_SEB_firn():
     # Read paths for weather input and output file
@@ -27,6 +26,7 @@ def run_SEB_firn():
     weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
     weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
 
+    # Choose data source, CARRA or AWS
     data_source = 'CARRA'
     #data_source = 'AWS'
 
@@ -39,10 +39,9 @@ def run_SEB_firn():
         print(weather_df.index[0])
         print(weather_df.index[-1])
 
-    
     if data_source == 'AWS':
         # DataFrame with the weather data is created, from AWS data
-        weather_df = io.load_promice(weather_data_input_path)[3858:(3858 + 8999)]
+        weather_df = io.load_promice(weather_data_input_path)[:5999] #[3858:(3858 + 8999)]
         weather_df = weather_df.set_index("time").resample("H").mean()
         weather_df = weather_df.interpolate()
         print(weather_df.index[0])
@@ -122,28 +121,12 @@ def run_SEB_firn():
     plt.close("all")
     #lpl.plot_summary(weather_df, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
     lpl.plot_summary(df_surface, c, 'SEB_output')
-
     lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
     
     melt_mweq_cum = df_surface["melt_mweq"].cumsum()
     print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
-
-    # Write results to csv file
-    # data_to_csv = pd.DataFrame(df_surface["L"])
-    # data_to_csv = data_to_csv.assign(LHF = df_surface["LHF"])
-    # data_to_csv = data_to_csv.assign(SHF = df_surface["SHF"])
-    # data_to_csv = data_to_csv.assign(theta_2m = df_surface["theta_2m"])
-    # data_to_csv = data_to_csv.assign(q_2m = df_surface["q_2m"])
-    # data_to_csv = data_to_csv.assign(ws_10m = df_surface["ws_10m"])
-    # data_to_csv = data_to_csv.assign(Re = df_surface["Re"])
-    # data_to_csv = data_to_csv.assign(melt_mweq = df_surface["melt_mweq"])
-    # data_to_csv = data_to_csv.assign(sublimation_mweq = df_surface["sublimation_mweq"])
-
-    # filename = 'runsebfirn_output_opt12.2_200lay_short.csv'
-    # filename= '21res__opt_manual.csv'
-    # pd.DataFrame(data_to_csv).to_csv(filename)
 
 
 # Constant definition

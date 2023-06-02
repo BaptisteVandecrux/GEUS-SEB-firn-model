@@ -14,11 +14,9 @@ import lib_io as io
 import lib_plot as lpl
 import matplotlib.pyplot as plt
 import multiprocessing
-from multiprocessing import Pool
 import numpy as np
 import os
 import pandas as pd
-import xarray as xr
 
 from joblib import Parallel, delayed
 from lib_initialization import ImportConst, load_json
@@ -62,9 +60,6 @@ def run_GEUS_model_opt(site):
     df_aws = df_aws.set_index("time").resample("H").mean()
     time = df_aws.index.values
 
-    #print("Number of NaN: ")
-    #print(df_aws.isnull().sum())
-
     # Initialize variables
     (
         rhofirn,
@@ -87,10 +82,9 @@ def run_GEUS_model_opt(site):
     ) = ini.IniVar(time, c)
 
     if 'acc_subl_mmweq' not in df_aws.columns:
-        #print("You do not have preprocessed input data in the right format. Values from the SEB model will be used.")
+        print("You do not have preprocessed input data in the right format. Values from the SEB model will be used.")
         # Read parameter values from main SEB firn, UPDATE
         path = r'C:\Users\brink\Documents\Exjobb\GEUS-SEB-firn-model\Input\Weather data\param_from_old_SEB_' + site + '_200_lay.csv'
-        #print("parallelised code, path: ", path)
         df_SEB_output = pd.read_csv(path, index_col=False)
         snowfall = df_SEB_output['snowfall']
         Tsurf = df_SEB_output['Tsurf']
@@ -175,9 +169,9 @@ def run_GEUS_model_opt(site):
     io.write_2d_netcdf(compaction, "compaction", depth_act, time, c)
 
     # #Plotting from main_seb_firn.py
-    # plt.close("all")
-    # lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
-    # lpl.plot_summary(df_SEB_output, c, 'SEB_output')
+    plt.close("all")
+    lpl.plot_summary(df_aws, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+    lpl.plot_summary(df_SEB_output, c, 'SEB_output')
 
     print("File created: ", c.RunName)
     return c.RunName
@@ -189,7 +183,38 @@ def run_GEUS_model_opt(site):
     #         pgrndcapc, pgrndhflx, dH_comp, snowbkt)
 
 
-# Old script
+# Run new main_firn, parallel
+def run_main_firn_parallel(site_list):
+    num_cores = multiprocessing.cpu_count()
+    run_name_list = Parallel(n_jobs=num_cores, verbose=10)(delayed(run_GEUS_model_opt)(site) for site in site_list)
+   
+    return(run_name_list)
+
+
+if __name__ == "__main__":
+    site_list = [
+         "KAN_M",
+         "KAN_U"       
+    ] 
+    # Run new main_firn, parallelised
+    run_main_firn_parallel(site_list)
+
+    # Calls to original code
+    # Run old main_firn
+    # run_main_firn_old(site_list)
+
+
+
+# %% debbuging
+# i = 0
+# (pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c) = (ts[i].copy(), grndc[:,i-1].copy(), grndd[:, i-1].copy(),
+#                             slwc[:, i-1].copy(), snic[:, i-1].copy(), snowc[:, i-1].copy(),
+#                             rhofirn[:, i-1].copy(), tsoil[:, i-1].copy(), dgrain[:, i-1].copy(),
+#                             net_accum[i].copy(), 0, melt[i].copy(), c.Tdeep, snowbkt[i-1].copy(), c)
+
+
+
+# Old script (modified to get it running), used for comparison and testing:
 def run_GEUS_model_old(site, filename):
     # New code 
     # Read paths for weather input and output file
@@ -366,7 +391,6 @@ def run_GEUS_model_old(site, filename):
     #         grndd, compaction, zrogl, Tsurf_out,
     #         pgrndcapc, pgrndhflx, dH_comp, snowbkt)
 
-
 # Run original version of code
 def run_main_firn_old(site_list):
     run_name_list = []
@@ -376,39 +400,3 @@ def run_main_firn_old(site_list):
         run_name = run_GEUS_model_old(site, filename)
         run_name_list.append(run_name)
     return run_name_list
-
-# Run new main_firn, parallel
-def run_main_firn_parallel(site_list):
-    num_cores = multiprocessing.cpu_count()
-    run_name_list = Parallel(n_jobs=num_cores, verbose=10)(delayed(run_GEUS_model_opt)(site) for site in site_list)
-    #run_name_list = Parallel(n_jobs=4, verbose=10)(delayed(run_GEUS_model_opt)(site) for site in site_list)
-
-    #run_name_list = []
-   
-    # for site in site_list:
-    #     print(site)
-    #     run_name = run_GEUS_model_opt(site)
-    #     run_name_list.append(run_name)
-    return(run_name_list)
-
-
-if __name__ == "__main__":
-    site_list = [
-         "KAN_M",
-         "KAN_U"       
-    ] 
-
-    # Run old main_firn
-    run_main_firn_old(site_list)
-
-    # Run new main_firn, parallelised
-    #run_main_firn_parallel(site_list)
-
-
-
-# %% debbuging
-# i = 0
-# (pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c) = (ts[i].copy(), grndc[:,i-1].copy(), grndd[:, i-1].copy(),
-#                             slwc[:, i-1].copy(), snic[:, i-1].copy(), snowc[:, i-1].copy(),
-#                             rhofirn[:, i-1].copy(), tsoil[:, i-1].copy(), dgrain[:, i-1].copy(),
-#                             net_accum[i].copy(), 0, melt[i].copy(), c.Tdeep, snowbkt[i-1].copy(), c)

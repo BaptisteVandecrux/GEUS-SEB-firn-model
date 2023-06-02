@@ -1,12 +1,8 @@
 import numpy as np
 import pandas as pd
-import warnings
-from numba import njit, jit
+from numba import njit
 
-#import lib_initialization as ini
 from lib_initialization import Struct, IniVar
-from lib_CARRA_initialization import load_CARRA_data_opt
-#import lib_subsurface as sub
 from lib_subsurface import subsurface
 from progressbar import progressbar
 
@@ -220,7 +216,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
                 q_2m[k],
                 ws_10m[k],
                 Re[k],
-            ) = SensLatFluxes_bulk_old(
+            ) = SensLatFluxes_bulk_opt(
                 WS[k],
                 nu[k],
                 q[k],
@@ -336,13 +332,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             print("snowthick < 0")
             
     # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
-    
-    # Write parameters to csv file for main_firn.py input
-    # print("Writing to csv")
-    # df = pd.DataFrame({"sublimation_mweq" : sublimation_mweq, "melt_mweq" : melt_mweq, "Tsurf" : Tsurf, "snowfall" : snowfall})
-    # df.to_csv("test_input_from_SEB_KAN_U.csv")
-
-    
+        
     return (
         L,
         LHF,
@@ -872,7 +862,7 @@ def SmoothSurf_opt(
 
 # A function called from SmoothSurf, added for faster execution
 # Returns: Computed value of u_star
-@njit#(fastmath=True)
+@njit
 def get_u_star(kappa: float, WS: np.float64, z_WS: np.float64, z_0: np.float64, psi_m2: np.float64, psi_m1: np.float64):
     return kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
 
@@ -895,7 +885,6 @@ def get_zh_zq(z_0, ch1, ch2, ch3, ind, Re, cq1, cq2, cq3):
 #          z_WS[k], z_T[k], z_RH[k], z_0, c)
 
 
-#@profile
 def SensLatFluxes_bulk_opt(
     WS: np.float64, nu: np.float64, q: np.float64, snowthick: np.float64, 
     Tsurf: np.float64, theta: np.float64, theta_v: np.float64, pres: np.float64,
@@ -934,20 +923,6 @@ def SensLatFluxes_bulk_opt(
                 else RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
             )  
   
-        # try:
-        #     es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0) 
-        #     q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
-        # except:
-        #     print("Error. es_ice_surf")
-        #     return -999, 0, 0, theta, q, WS, 0
-        
-        # if np.isnan(es_ice_surf):
-        #     print("es_ice_surf is nan. Gets assigned 0.")
-        #     es_ice_surf = 0
-        #q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
-        # DOES NOT SEEM TO BE A GOOD IDEA WITH NUMBA ON ES ICE SURF - UPDATE
-        #es_ice_surf = get_es_ice_surf(Tsurf, c.T_0, c.es_0)
-
         es_ice_surf =  (10 ** (
         -9.09718 * (c.T_0 / Tsurf - 1.0)
             - 3.56654 * np.log10(c.T_0 / Tsurf)
@@ -1173,18 +1148,6 @@ def get_L(u_star, theta, es, q, g, kappa, th_star, q_star):
         / (g * kappa * th_star * (1 + ((1 - es) / es) * q_star))
     )
 
-# A function computing saturation vapour pressure, added for faster execution
-# Parameters: Tsurf, c.T_0 as cT_0, c.es_0 as es_0
-# Returns: value for es_ice_surf
-@njit
-def get_es_ice_surf(Tsurf, cT_0, es_0):
-    es_ice_surf =  (10 ** (
-        -9.09718 * (cT_0 / Tsurf - 1.0)
-            - 3.56654 * np.log10(cT_0 / Tsurf)
-            + 0.876793 * (1.0 - Tsurf / cT_0)
-            + np.log10(es_0)
-        )) 
-    return es_ice_surf
 
 # Several functions computing values for psi, added for faster execution 
 # Done in separate functions to maintain correct results.
@@ -1270,11 +1233,12 @@ def get_psi_unstable(x1, x2, y1, y2, yq, yq2):
     psi_h2 = np.float64(np.log(((1 + y2) / 2) ** 2))
     psi_q = np.float64(np.log(((1 + yq) / 2) ** 2))
     psi_q2 = np.float64(np.log(((1 + yq2) / 2) ** 2))
+
     return psi_m1, psi_m2, psi_h1, psi_h2, psi_q, psi_q2
 
 
 
-# Old functions, that have been optimized, used for comparision. To be deleted:
+# Old functions, that have been optimized, used for comparision and testing:
 
 def SmoothSurf_old(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
     u_star = c.kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
@@ -1311,7 +1275,6 @@ def SmoothSurf_old(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
 
     return z_h, z_q, u_star, Re 
 
-#@profile
 def SensLatFluxes_bulk_old(
     WS: np.float64, nu: np.float64, q: np.float64, snowthick: np.float64, 
     Tsurf: np.float64, theta: np.float64, theta_v: np.float64, pres: np.float64,
