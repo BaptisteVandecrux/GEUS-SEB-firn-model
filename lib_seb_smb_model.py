@@ -3,7 +3,7 @@ import pandas as pd
 from numba import njit
 
 from lib_initialization import Struct, IniVar
-from lib_subsurface import subsurface
+from lib_subsurface import subsurface_opt
 from progressbar import progressbar
 
 # Surface energy and mass budget model for ice sheets, by Dirk van As.
@@ -293,7 +293,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             dH_comp[k],
             snowbkt[k],
             compaction[:, k],
-        ) = subsurface(
+        ) = subsurface_opt(
             Tsurf[k],
             grndc[:, k - 1].copy(),
             grndd[:, k - 1].copy(),
