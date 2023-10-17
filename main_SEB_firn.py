@@ -7,15 +7,14 @@ tip list:
     %matplotlib qt
     import pdb; pdb.set_trace()
 """
-#import __init__
-import lib_io as io
-import lib_plot as lpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from lib_initialization import ImportConst, load_json
-from lib_seb_smb_model import HHsubsurf
-from lib_CARRA_initialization import load_CARRA_data_opt
+import lib.io as io
+import lib.plot as lpl
+from lib.initialization import ImportConst, load_json
+from lib.seb_smb_model import HHsubsurf
+from lib.CARRA_initialization import load_CARRA_data_opt
 from os import mkdir
 
 def run_SEB_firn():
@@ -27,8 +26,8 @@ def run_SEB_firn():
     weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
 
     # Choose data source, CARRA or AWS
-    data_source = 'CARRA'
-    #data_source = 'AWS'
+    # data_source = 'CARRA'
+    data_source = 'AWS'
 
     # Create struct c with all constant values
     c = set_constants(weather_station)
@@ -41,7 +40,7 @@ def run_SEB_firn():
 
     if data_source == 'AWS':
         # DataFrame with the weather data is created, from AWS data
-        weather_df = io.load_promice(weather_data_input_path)[:5999] #[3858:(3858 + 8999)]
+        weather_df = io.load_promice(weather_data_input_path)[:5999]
         weather_df = weather_df.set_index("time").resample("H").mean()
         weather_df = weather_df.interpolate()
         print(weather_df.index[0])
@@ -143,7 +142,7 @@ def set_constants(weather_station):
     c.ElevGrad = 0.1
     c.z_max = 50
     c.dz_ice = 1
-    NumLayer = int(c.z_max / c.dz_ice)
+    # NumLayer = int(c.z_max / c.dz_ice)
     #c.num_lay = NumLayer
     c.num_lay = 200
     c.verbose = 1
