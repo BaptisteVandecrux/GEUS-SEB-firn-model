@@ -16,9 +16,12 @@ from lib.initialization import ImportConst, load_json
 from lib.seb_smb_model import HHsubsurf
 from lib.CARRA_initialization import load_CARRA_data_opt
 from os import mkdir
+import time
 
 def run_SEB_firn():
     # Read paths for weather input and output file
+    start_time = time.time()
+    print('start processing')
     parameters = load_json()
     output_path = str(parameters['output_path'])
     weather_station = str(parameters['weather_station'])
@@ -43,14 +46,15 @@ def run_SEB_firn():
         weather_df = io.load_promice(weather_data_input_path)[:5999]
         weather_df = weather_df.set_index("time").resample("H").mean()
         weather_df = weather_df.interpolate()
-        print(weather_df.index[0])
-        print(weather_df.index[-1])
+
 
     # DataFrame for the surface is created, indexed with time from df_aws
     df_surface = pd.DataFrame()
     df_surface["time"] = weather_df.index
     df_surface = df_surface.set_index("time")
 
+    print('reading inputs took %0.03f sec'%(time.time() -start_time))
+    start_time = time.time()
     # The surface values are received 
     (
         df_surface["L"],
@@ -84,7 +88,10 @@ def run_SEB_firn():
         snowbkt,
         compaction
     ) = HHsubsurf(weather_df, c)
-
+    
+    print('HHsubsurf took %0.03f sec'%(time.time() -start_time))
+    start_time = time.time()
+    
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
     depth_act = np.cumsum(thickness_act, 0)
     density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
@@ -116,6 +123,9 @@ def run_SEB_firn():
     # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, weather_df.index, RunName)
     # io.write_2d_netcdf(compaction, 'compaction', depth_act, weather_df.index, RunName)
 
+    print('writing output files took %0.03f sec'%(time.time() -start_time))
+    start_time = time.time()
+    
     # Plot output
     plt.close("all")
     #lpl.plot_summary(weather_df, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
@@ -124,9 +134,14 @@ def run_SEB_firn():
     lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
     lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
     
-    melt_mweq_cum = df_surface["melt_mweq"].cumsum()
-    print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
-
+    plt.figure()
+    plt.plot(df_surface["LRout_mdl"], 
+             weather_df.LongwaveRadiationUpWm2,
+             marker='.',ls='None')
+    # melt_mweq_cum = df_surface["melt_mweq"].cumsum()
+    # print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
+    print('plotting took %0.03f sec'%(time.time() -start_time))
+    start_time = time.time()
 
 # Constant definition
 # All constant values are defined in a set of csv file in the Input folder.
