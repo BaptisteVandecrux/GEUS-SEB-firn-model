@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
+import sys
 from numba import njit
 
 from lib.initialization import Struct, IniVar
 from lib.subsurface import subsurface_opt
-from progressbar import progressbar
 
+import matplotlib.pyplot as plt
+plt.close('all')
 # Surface energy and mass budget model for ice sheets, by Dirk van As.
 # The model can be run for a single location with a time series of p, T, RH, WS, SR, and LRin,
 # or for a transect for which the input variables are height-depent.
@@ -95,7 +97,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         melt_mweq,
         sublimation_mweq,
     ) = variables_preparation(weather_df, c)
-    Tsurf_obs = T * np.nan
 
     # Converts RH from relative to water to relative to ice
     # RH_wrt_w = RH
@@ -106,6 +107,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
 
     (
         rhofirn,
+        rho,
         snowc,
         snic,
         slwc,
@@ -116,53 +118,60 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         compaction,
         zrfrz,
         zsupimp,
-        ts,
+        Tsurf,
         zrogl,
         pgrndcapc,
         pgrndhflx,
         dH_comp,
         snowbkt,
+        snowthick
     ) = IniVar(time, c)
-
-    rho = rhofirn.copy()
-    SRnet = rhofirn[:, 0].copy()
-
-    # [H_comp, GF, GFsurf, GFsubsurf, melt_mweq,snowbkt_out,sublimation_mweq,
-    # SMB_mweq,  ~, L, LHF, meltflux, ~, rho,  runoff,SHF, SRnet,~,  T_ice,
-    # grndc, grndd , pdgrain, refreezing,  theta_2m,q_2m,ws_10m, Tsurf,
-    # snowthick,z_icehorizon,Re,Ri,err]= IniVar(c)
 
     # c = CalculateMeanAccumulation(time,snowfall, c)
 
-    # preparing some variables
+    # potential temperature
     theta = T + z_T * c.g / c.c_pd
+    # virtual potential temperature
     theta_v = theta * (1 + ((1 - c.es) / c.es) * q)
+    
+    # start of the time loop
+    for k in range(len(time)):
+        if k in np.round(np.linspace(0,len(time),51)):
+            sys.stdout.write("%.0f %% "%(100*k/len(time)))
+            sys.stdout.flush()
 
-    for k in progressbar(range(len(time))):
-        # Step 1/*: Update snowthickness and instrument heights
-        if k == 0:
-            snowthick = np.empty((len(time)), dtype="float64")
-            snowthick[0] = c.snowthick_ini
-            # snow to ice transition
-            z_icehorizon = int(min(c.z_ice_max, np.floor(snowthick[0] / c.dz_ice)))
-        else:
-            snowthick[k] = snowthick[k - 1]  # will be updated at  of time loop
-
+        # Step 1/*: Initiate surface variables from previous time step. 
+        # The value for k=0 was placed at the end of the array in IniVar.
+        snowthick[k] = snowthick[k - 1]
+        Tsurf[k] = Tsurf[k - 1]
+        snowbkt[k] = snowbkt[k - 1]
+        
         # Step 2/*: shortwave radiation balance snow & ice penetration
-        thickness_m = snowc[:, k - 1] * (c.rho_water / rhofirn[:, k - 1]) + snic[
-            :, k - 1
-        ] * (c.rho_water / c.rho_ice)
+        thickness_m = (
+            snowc[:, k - 1] * (c.rho_water / rhofirn[:, k - 1]) 
+            + snic[:, k - 1] * (c.rho_water / c.rho_ice)
+                       )
+        
         depth_m = np.cumsum(thickness_m, 0)
+
+        ind_ice = np.argmax(depth_m > snowthick[k])
+
         rho[:, k] = (
             (snowc[:, k - 1] + snic[:, k - 1] + slwc[:, k - 1])
-            * c.rho_water
-            / thickness_m
+            * c.rho_water / thickness_m
         )
 
-        snowbkt[k] = snowbkt[k - 1]
-
-        SRnet, T_ice, internal_melting = SRbalance(
-            SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c
+        (
+            SRnet, 
+            T_ice[:, k], 
+            internal_melting
+        ) = SRbalance(
+            SRin[k] - SRout[k], 
+            ind_ice, 
+            thickness_m, 
+            T_ice[:, k - 1], 
+            rho[:, k], 
+            c
         )
 
         # Step 5/*:  Surface temperature calculation
@@ -172,16 +181,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         # thickness of the first layer in m weq for thermal transfer
         thick_first_lay = snic[0, k - 1] + snowc[0, k - 1]
 
-        # starting surface temperature solving
-        if (c.solve_T_surf == 0) & (~np.isnan(Tsurf_obs[k])):
-            print("Solve_T_surf == 0")
-            # if user asked for using measured surface temperature instead
-            # of solving for it and that there is a measurement available
-            iter_max_EB = 1  # we do one iteration in the solver bellow
-            Tsurf[k] = Tsurf_obs[k]  # we use measured surface temp
-
-        else:
-            iter_max_EB = c.iter_max_EB  # otherwise just using standard value
             
         # Prepare parameters needed for SEB
         EB_prev = 1
@@ -205,7 +204,9 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             # ice roughness length
             z_0 = c.z0_ice
 
-        for findbalance in range(1, iter_max_EB):
+        for findbalance in range(1, c.iter_max_EB):
+            assert ~np.isnan(Tsurf[k]), "nan Tsurf"
+
             # SENSIBLE AND LATENT HEAT FLUX
 
             (
@@ -235,7 +236,14 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             )
 
             # SURFACE ENERGY BUDGET
-            meltflux[k], Tsurf[k], dTsurf, EB_prev, stop = SurfEnergyBudget(
+            (
+                meltflux[k],
+                Tsurf[k],
+                dTsurf,
+                EB_prev,
+                stop,
+                LRout[k]
+             ) = SurfEnergyBudget(
                 SRnet,
                 LRin[k],
                 Tsurf[k],
@@ -251,30 +259,20 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
                 c,
             )
 
-            if iter_max_EB == 1:
-                # if we are using surface temperature it might have been
-                # modified by SurfEnergyBudget. So we assign it again.
-                Tsurf[k] = Tsurf_obs[k]
-
             if stop:
                 break
 
-        if (iter_max_EB != 1) & (
-            (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max)
-        ):
+        if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
             print("Problem closing energy budget")
 
         # Step 6/*:  Mass Budget
         # in mweq
-        melt_mweq[k] = meltflux[k] * c.dt_obs / c.L_fus / c.rho_water
-        sublimation_mweq[k] = LHF[k] * c.dt_obs / c.L_sub / c.rho_water  # in mweq
+        melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
+        sublimation_mweq[k] = LHF[k] * c.zdtime / c.L_sub / c.rho_water  # in mweq
         # positive LHF -> deposition -> dH_subl positive
 
         # ========== Step 7/*:  Sub-surface model ====================================
-        # GF[1:c.z_ice_max] = -k_eff[1:c.z_ice_max] * (T_ice[:c.z_ice_max-1,k] - T_ice[1:c.z_ice_max, k]) / c.dz_ice
-        # GFsurf[k] = - k_eff[0] * (Tsurf[k]- T_ice[1,k]) / thick_first_lay
         c.rho_fresh_snow = rho_snow
-
         (
             snowc[:, k],
             snic[:, k],
@@ -315,24 +313,13 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
         )
-        # refreezing[:,k] = zrfrz[:, k] + zsupimp[:, k]
+
         z_icehorizon = int(np.floor(snowthick[k] / c.dz_ice))
-
-        # if k> 1:
-        #     SMB_mweq[k] =  snowfall[k] - runoff[k]             + rainfall[k] + sublimation_mweq[k]
-
-        #     # Update BV2017: With the layer-conservative model, the surface height
-        #     # can be calculated outside of the sub-surface scheme assuming that the
-        #     # bottom of the collumn remains at constant depth
-        #     # cumulative dry compaction
-        #     H_comp[k] = H_comp(k-1) + dH_comp  #in real m
 
         if snowthick[k] < 0:
             snowthick[k] = 0
             print("snowthick < 0")
-            
-    # rainHF = c.rho_water * c.c_w[0] * rainfall / c.dt_obs * (T_rain-Tsurf)
-        
+                    
     return (
         L,
         LHF,
@@ -377,34 +364,7 @@ def IniRhoSnow(T, WS, c: Struct):
     # ==========================================================================
 
     mean_T = np.mean(T)
-
-    if c.rho_snow_scheme == 0:
-        rho_snow = c.fresh_snow_dens  # constant in time and place
-
-    if c.rho_snow_scheme == 1:
-        rho_snow = 625.0 + 18.7 * (mean_T - c.T_0) + 0.293 * (mean_T - c.T_0) ** 2
-
-    # surface snow density by Reeh et al. 2005
-    if c.rho_snow_scheme == 2:
-        rho_snow = 481.0 + 4.834 * (mean_T - c.T_0)
-    # surface snow density by Kuipers-Munneke et al. 2015
-    if c.rho_snow_scheme == 3:
-        rho_snow = 369.58 - 0.02298 * c.elev
-    # PLA RFO fresh snow density (May 2015): BV2017 using
-    # elevation-based parametrization
-    if c.rho_snow_scheme == 4:
-        rho_snow = 350  # default value everywhere
-        ind = T >= 258.16
-        rho_snow[ind] = 50 + 1.7 * (T[ind] - 258.16) ** 1.5
-        ind = (T >= 258.16) & (WS >= 5)
-        rho_snow[ind] = (
-            50
-            + 1.7 * (T[ind] - 258.16) ** 1.5
-            + 25
-            + 250 * (1 - np.exp(-0.2 * (WS[ind] - 5)))
-        )
-    # surface snow density by Liston et al., 2007
-    # only works above -15 degC
+    rho_snow = c.fresh_snow_dens  # constant in time and place
     return rho_snow
 
 
@@ -421,7 +381,6 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     SRin = weather_df.ShortwaveRadiationDownWm2.values
     SRout = weather_df.ShortwaveRadiationUpWm2.values
     LRin = weather_df.LongwaveRadiationDownWm2.values
-    LRout = weather_df.LongwaveRadiationUpWm2.values
     snowfall = weather_df.Snowfallmweq.values
     rainfall = weather_df.Rainfallmweq.values
 
@@ -445,6 +404,7 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
 
     Tsurf = np.empty((len(time)), dtype="float64") 
     Tsurf[0] = np.mean(T[:24]) - 2.4
+    LRout = np.empty((len(time)), dtype="float64") 
 
     # The 2 m air temperature and IR skin temperature are similar during peak
     # solar irradiance, with the mean difference in temperature equal to -0.32oC
@@ -617,28 +577,30 @@ def SurfEnergyBudget(
     stop = 0
 
     # SURFACE ENERGY BUDGET
+    
+    LRout_mdl = c.em * c.sigma * Tsurf ** 4 + (1 - c.em) * LRin
+    
     meltflux = (
         SRnet[0]
         - SRnet[1]
         + LRin
-        - c.em * c.sigma * Tsurf ** 4
-        - (1 - c.em) * LRin
+        - LRout_mdl
         + SHF
         + LHF
         - (k_eff[0]) * (Tsurf - T_ice[1]) / thick_first_lay
-        + c.rho_water * c.c_w * rainfall * c.dev / c.dt_obs * (T_rain - c.T_0)
+        + c.rho_water * c.c_w * rainfall * c.dev / c.zdtime * (T_rain - c.T_0)
     )
 
     if (meltflux >= 0) & (Tsurf == c.T_0):
         # stop iteration for melting surface
         stop = 1
-        return meltflux, Tsurf, dTsurf, EB_prev, stop
+        return meltflux, Tsurf, dTsurf, EB_prev, stop, LRout_mdl
 
     if abs(meltflux) < c.EB_max:
         # stop iteration when energy components in balance
         stop = 1
         meltflux = 0
-        return meltflux, Tsurf, dTsurf, EB_prev, stop
+        return meltflux, Tsurf, dTsurf, EB_prev, stop, LRout_mdl
 
     if meltflux / EB_prev < 0:
         dTsurf = 0.5 * dTsurf
@@ -652,10 +614,10 @@ def SurfEnergyBudget(
     else:
         Tsurf = min(c.T_0, Tsurf + dTsurf)
 
-    return meltflux, Tsurf, dTsurf, EB_prev, stop
+    return meltflux, Tsurf, dTsurf, EB_prev, stop, LRout_mdl
 
 
-def SRbalance(SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c: Struct):
+def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
     # SRbalance: Calculates the amount of Shortwave Radiation that is
     # penetrating at each layer (SRnet).
     # uses it to warm each layer and eventually calculates the melt that is
@@ -666,66 +628,53 @@ def SRbalance(SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c: Struct):
     # ==========================================================================
     # extinction coefficient of ice 0.6 to 1.5 m-1
     # extinction coefficient of snow 4 to 40 m-1
-    # Greufell and Maykut, 1977, Journal of Glacionp.logy, Vol. 18, No. 80, 1977
+    # Greufell and Maykut, 1977, Journal of Glaciology, Vol. 18, No. 80, 1977
 
     # radiation absorption in snow
-    # SRnet(snow_layer) = (SRin - SRout)#     *exp(-ext_snow*depth(snow_layer))
+    # SRnet(snow_layer) = (SRin - SRout)
+    #     *exp(-ext_snow*depth(snow_layer))
     #
     # radiation absorption in ice layers underneath the snowpack
-    #  SRnet(ice_layer) = (SRin-SRout).*#         exp(-ext_snow*snowthick).*#         exp(-ext_ice*(depth(ice_layer) - snowthick))
-    SRnet = np.empty_like(T_ice[:, 0])
+    #  SRnet(ice_layer) = (SRin-SRout).*
+    #         exp(-ext_snow*snowthick).*
+    #         exp(-ext_ice*(depth(ice_layer) - snowthick))
+    SRnet = np.empty_like(T_ice)
+    depth_m = np.cumsum(thickness_m, 0)
+    
     # radiation absorption in snow
-    SRnet[:(z_icehorizon)] = (SRin[k] - SRout[k]) * np.exp(
-        -c.ext_snow * np.arange(0, z_icehorizon) * c.dz_ice
-    )
-
+    SRnet[:ind_ice] = SRnet_surf * (1 - np.exp(-c.ext_snow * depth_m[:ind_ice]))
+    SRnet[1:ind_ice] = SRnet[1:ind_ice] - SRnet[:(ind_ice-1)]
+    
     # radiation absorption in underlying ice
-    if z_icehorizon < c.z_ice_max:
-        SRnet[z_icehorizon:] = (
-            (SRin[k] - SRout[k])
-            * np.exp(-c.ext_snow * snowthick[k])
-            * np.exp(
-                -c.ext_ice
-                * (np.arange(z_icehorizon, len(SRnet)) * c.dz_ice - snowthick[k])
-            )
+    if ind_ice < len(SRnet):
+        SRnet[ind_ice:] = (
+            SRnet_surf
+            * np.exp(-c.ext_snow * depth_m[ind_ice-1])
+            * (1 - np.exp(-c.ext_ice * (depth_m[ind_ice:] - depth_m[ind_ice-1])))
         )
-
-    # specific heat of ice
-    # (perhaps a slight overestimation for near-melt ice temperatures (max 48 J/kg/K))
+        SRnet[(ind_ice+1):] = SRnet[(ind_ice+1):] - SRnet[ind_ice:-1]
+        
     # snow & ice temperature rise due to shortwave radiation absorption
     # Specific heat of ice (a slight overestimation for near-melt T (max 48 J kg-1 K-1))
-    c_i = 152.456 + 7.122 * T_ice[:, k - 1]
+    c_i = 152.456 + 7.122 * T_ice
 
-    T_ice[: c.z_ice_max - 1, k] = (
-        T_ice[: c.z_ice_max - 1, k - 1]
-        + c.dt_obs
-        / c.dev
-        / rho[: c.z_ice_max - 1, k]
-        / c_i[: c.z_ice_max - 1]
-        * (SRnet[: c.z_ice_max - 1] - SRnet[1 : c.z_ice_max])
-        / c.dz_ice
-    )
-
-    T_ice[c.z_ice_max - 1, k] = T_ice[c.z_ice_max - 1, 0]
+    T_ice = T_ice + SRnet * c.zdtime / c.dev / rho / c_i / thickness_m
+    # SRnet [W = J/s] x zdtime/dev [s] / rho [kg m-3] / c_i [J kg-1 K-1] / thick [m]
 
     # finding where/how much melt occurs
-    subsurfmelt = T_ice[:, k] > c.T_0
-    nosubsurfmelt = T_ice[:, k] <= c.T_0
-    dT_ice = T_ice[:, k] - c.T_0
+    subsurfmelt = T_ice > c.T_0
+    nosubsurfmelt = T_ice <= c.T_0
+    dT_ice = T_ice - c.T_0
     dT_ice[nosubsurfmelt] = 0
 
-    meltflux_internal_temp = rho[:, k] * c_i * dT_ice / c.dt_obs * c.dev * c.dz_ice
-    meltflux_internal = np.sum(meltflux_internal_temp[: c.z_ice_max])
-
-    dH_melt_internal = np.zeros_like(SRnet)
-    dH_melt_internal = -c_i * dT_ice / c.L_fus * c.dz_ice
-    dH_melt_internal[0] = 0
+    meltflux_internal = rho * c_i * dT_ice / c.zdtime * c.dev * thickness_m
+    meltflux_internal_sum = np.sum(meltflux_internal)
 
     if np.sum(subsurfmelt) > 0:
-        T_ice[subsurfmelt, k] = c.T_0  # removing non-freezing temperatures
+        T_ice[subsurfmelt] = c.T_0  # removing non-freezing temperatures
 
     # Reduce sub-surface density due to melt? Will most likely cause model instability
-    return SRnet, T_ice, meltflux_internal
+    return SRnet, T_ice, meltflux_internal_sum
 
 
 # def SRbalance (SRout, SRin, psnowc, psnic, pslwc, prhofirn, psnowbkt, T_ice, rho,  k, c):
@@ -922,7 +871,7 @@ def SensLatFluxes_bulk_opt(
                 if snowthick > 0 
                 else RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
             )  
-  
+
         es_ice_surf =  (10 ** (
         -9.09718 * (c.T_0 / Tsurf - 1.0)
             - 3.56654 * np.log10(c.T_0 / Tsurf)
@@ -973,19 +922,16 @@ def SensLatFluxes_bulk_opt(
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
 
                 if (L < c.smallno) | (abs((L_prev - L)) < c.L_dif):
-                    # calculating 2m temperature, humidity and wind speed
-                    theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(Tsurf, th_star, c.kappa, 
-                                                                z_h, psi_h2, psi_h1, 
-                                                                q_surf, q_star, z_q, psi_q2, psi_q,
-                                                                u_star, z_0, psi_m2, psi_m1
-                                                                )
-
+                    # convergence reached, exiting loop
                     break
 
         if (theta < Tsurf) & (WS >= c.WS_lim):  # unstable stratification
             # correction defs as in
-            # Dyer, A. J.: 1974, ‘A Review of Flux-Profile Relationships’, Boundary-Layer Meteorol. 7, 363– 372.
-            # Paulson, C. A.: 1970, ‘The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer’, J. Appl. Meteorol. 9, 857–861.
+            # Dyer, A. J.: 1974, ‘A Review of Flux-Profile Relationships’, 
+            # Boundary-Layer Meteorol. 7, 363– 372.
+            # Paulson, C. A.: 1970, ‘The Mathematical Representation of Wind 
+            # Speed and Temperature Profiles in the Unstable Atmospheric Surface 
+            # Layer’, J. Appl. Meteorol. 9, 857–861.
 
             for i in range(0, c.iter_max_flux):
                 x1, x2, y1, y2, yq, yq2 = compute_x_y_const(c.gamma, z_0, z_WS, z_h, z_T, z_q, z_RH, L)
@@ -1017,13 +963,27 @@ def SensLatFluxes_bulk_opt(
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
 
                 if abs((L_prev - L)) < c.L_dif:
-                    #calculating 2m temperature, humidity and wind speed
-                    theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(Tsurf, th_star, c.kappa, 
-                                                                z_h, psi_h2, psi_h1, 
-                                                                q_surf, q_star, z_q, psi_q2, psi_q,
-                                                                u_star, z_0, psi_m2, psi_m1
-                                                                )
+                    # convergence reached, exiting loop
                     break
+                
+            # calculating 2m temperature, humidity and wind speed
+            theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(
+                Tsurf, 
+                th_star, 
+                c.kappa, 
+                z_h, 
+                psi_h2,
+                psi_h1, 
+                q_surf, 
+                q_star, 
+                z_q, 
+                psi_q2,
+                psi_q,
+                u_star,
+                z_0, 
+                psi_m2,
+                psi_m1,
+                )
                 
     else:
         # threshold in windspeed ensuring the stability of the SHF/THF

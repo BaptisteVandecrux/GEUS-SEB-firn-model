@@ -12,167 +12,133 @@ import numpy as np
 import pandas as pd
 import lib.io as io
 import lib.plot as lpl
-from lib.initialization import ImportConst, load_json
+from lib.initialization import ImportConst
 from lib.seb_smb_model import HHsubsurf
-from lib.CARRA_initialization import load_CARRA_data_opt
 from os import mkdir
 import time
 
-def run_SEB_firn():
-    # Read paths for weather input and output file
-    start_time = time.time()
-    print('start processing')
-    parameters = load_json()
-    output_path = str(parameters['output_path'])
-    weather_station = str(parameters['weather_station'])
-    weather_data_input_path_unformatted = str(parameters['weather_data']['weather_input_path'])
-    weather_data_input_path = weather_data_input_path_unformatted.format(weather_station)
+# def run_SEB_firn():
 
-    # Choose data source, CARRA or AWS
-    # data_source = 'CARRA'
-    data_source = 'AWS'
+start_time = time.time()
+print('start processing')
 
-    # Create struct c with all constant values
-    c = set_constants(weather_station)
+# importing standard values for constants
+c = ImportConst()
 
-    if data_source == 'CARRA':
-        # Data with weather data is created, from CARRA data
-        weather_df = load_CARRA_data_opt(weather_station)[55200:58199]   
-        print(weather_df.index[0])
-        print(weather_df.index[-1])
+c.station = 'KAN_U'
 
-    if data_source == 'AWS':
-        # DataFrame with the weather data is created, from AWS data
-        weather_df = io.load_promice(weather_data_input_path)[:5999]
-        weather_df = weather_df.set_index("time").resample("H").mean()
-        weather_df = weather_df.interpolate()
+c.surface_input_path = "./input/weather data/data_"+c.station+"_combined_hour.txt"
+c.surface_input_driver = "AWS_old" 
+# c.surface_input_driver = "AWS_new" 
+# c.surface_input_driver = "CARRA" 
+
+# assigning constants specific to this simulation
+c.z_max = 50
+c.num_lay = 100
+# c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
+
+df_in = io.load_surface_input_data(c.surface_input_path, driver='AWS_old')
+
+df_in = df_in[:17520]
+
+print('start/end of input file', df_in.index[0], df_in.index[-1])
+# DataFrame for the surface is created, indexed with time from df_aws
+df_out = pd.DataFrame()
+df_out["time"] = df_in.index
+df_out = df_out.set_index("time")
+
+print('reading inputs took %0.03f sec'%(time.time() -start_time))
+start_time = time.time()
+# The surface values are received 
+(
+    df_out["L"],
+    df_out["LHF"],
+    df_out["SHF"],
+    df_out["theta_2m"],
+    df_out["q_2m"],
+    df_out["ws_10m"],
+    df_out["Re"],
+    df_out["melt_mweq"],
+    df_out["sublimation_mweq"],
+    df_out["SRin"],
+    df_out["SRout"],
+    df_out["LRin"],
+    df_out["LRout_mdl"],
+    snowc,
+    snic,
+    slwc,
+    T_ice,
+    zrfrz,
+    rhofirn,
+    zsupimp,
+    dgrain,
+    zrogl,
+    Tsurf,
+    grndc,
+    grndd,
+    pgrndcapc,
+    pgrndhflx,
+    dH_comp,
+    snowbkt,
+    compaction
+) = HHsubsurf(df_in, c)
+
+print('HHsubsurf took %0.03f sec'%(time.time() -start_time))
+start_time = time.time()
+
+thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
+depth_act = np.cumsum(thickness_act, 0)
+density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
+
+# Writing output
+c.RunName = c.station + "_" + str(c.num_lay) + "_layers"
+i = 0
+succeeded = 0
+while succeeded == 0:
+    try:
+        mkdir(c.output_path + c.RunName)
+        succeeded = 1
+    except:
+        if i == 0:
+            c.RunName = c.RunName + "_" + str(i)
+        else:
+            c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
+        i = i + 1
+
+# io.write_2d_netcdf(snic, 'snic', depth_act, df_in.index, c)
+io.write_2d_netcdf(slwc, 'slwc', depth_act, df_in.index, c)
+#io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_in.index, c)
+io.write_1d_netcdf(df_out, c)
+io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
+io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
+# io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, df_in.index, RunName)
+# io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
+# io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, RunName)
+# io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, RunName)
+
+print('writing output files took %0.03f sec'%(time.time() -start_time))
+start_time = time.time()
+
+# Plot output
+plt.close("all")
+#lpl.plot_summary(df_in, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+lpl.plot_summary(df_out, c, 'SEB_output')
+lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
+lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
+lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+
+plt.figure()
+plt.plot(df_out["LRout_mdl"], 
+         df_in.LongwaveRadiationUpWm2,
+         marker='.',ls='None')
+# melt_mweq_cum = df_out["melt_mweq"].cumsum()
+# print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
+print('plotting took %0.03f sec'%(time.time() -start_time))
+start_time = time.time()
 
 
-    # DataFrame for the surface is created, indexed with time from df_aws
-    df_surface = pd.DataFrame()
-    df_surface["time"] = weather_df.index
-    df_surface = df_surface.set_index("time")
-
-    print('reading inputs took %0.03f sec'%(time.time() -start_time))
-    start_time = time.time()
-    # The surface values are received 
-    (
-        df_surface["L"],
-        df_surface["LHF"],
-        df_surface["SHF"],
-        df_surface["theta_2m"],
-        df_surface["q_2m"],
-        df_surface["ws_10m"],
-        df_surface["Re"],
-        df_surface["melt_mweq"],
-        df_surface["sublimation_mweq"],
-        df_surface["SRin"],
-        df_surface["SRout"],
-        df_surface["LRin"],
-        df_surface["LRout_mdl"],
-        snowc,
-        snic,
-        slwc,
-        T_ice,
-        zrfrz,
-        rhofirn,
-        zsupimp,
-        dgrain,
-        zrogl,
-        Tsurf,
-        grndc,
-        grndd,
-        pgrndcapc,
-        pgrndhflx,
-        dH_comp,
-        snowbkt,
-        compaction
-    ) = HHsubsurf(weather_df, c)
-    
-    print('HHsubsurf took %0.03f sec'%(time.time() -start_time))
-    start_time = time.time()
-    
-    thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
-    depth_act = np.cumsum(thickness_act, 0)
-    density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
-
-    # Writing output
-    c.RunName = c.station + "_" + str(c.num_lay) + "_layers"
-    i = 0
-    succeeded = 0
-    while succeeded == 0:
-        try:
-            mkdir(output_path + c.RunName)
-            succeeded = 1
-        except:
-            if i == 0:
-                c.RunName = c.RunName + "_" + str(i)
-            else:
-                c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
-            i = i + 1
-    
-    c.OutputFolder = output_path
-    # io.write_2d_netcdf(snic, 'snic', depth_act, weather_df.index, c)
-    io.write_2d_netcdf(slwc, 'slwc', depth_act, weather_df.index, c)
-    #io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, weather_df.index, c)
-    io.write_1d_netcdf(df_surface, c)
-    io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, weather_df.index, c)
-    io.write_2d_netcdf(T_ice, 'T_ice', depth_act, weather_df.index, c)
-    # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, weather_df.index, RunName)
-    # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, weather_df.index, RunName)
-    # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, weather_df.index, RunName)
-    # io.write_2d_netcdf(compaction, 'compaction', depth_act, weather_df.index, RunName)
-
-    print('writing output files took %0.03f sec'%(time.time() -start_time))
-    start_time = time.time()
-    
-    # Plot output
-    plt.close("all")
-    #lpl.plot_summary(weather_df, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
-    lpl.plot_summary(df_surface, c, 'SEB_output')
-    lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
-    lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
-    lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
-    
-    plt.figure()
-    plt.plot(df_surface["LRout_mdl"], 
-             weather_df.LongwaveRadiationUpWm2,
-             marker='.',ls='None')
-    # melt_mweq_cum = df_surface["melt_mweq"].cumsum()
-    # print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
-    print('plotting took %0.03f sec'%(time.time() -start_time))
-    start_time = time.time()
-
-# Constant definition
-# All constant values are defined in a set of csv file in the Input folder.
-# They can be modiefied there or by giving new values in the "param" variable. 
-# The values of the constant given in param will overright the ones extracted 
-# from the csv files. The fieldnames in param should be the same as is c.
-def set_constants(weather_station):
-    c = ImportConst()
-    c.station = weather_station
-    c.elev = 2000
-    c.rh2oice = c.rho_water / c.rho_ice
-    c.zdtime = 3600
-    c.ElevGrad = 0.1
-    c.z_max = 50
-    c.dz_ice = 1
-    # NumLayer = int(c.z_max / c.dz_ice)
-    #c.num_lay = NumLayer
-    c.num_lay = 200
-    c.verbose = 1
-    c.Tdeep = 250.15
-    # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
-    c.lim_new_lay = 0.02
-    c.rho_fresh_snow = 315
-    c.snowthick_ini = 1
-    c.dz_ice = 1
-    c.z_ice_max = 50
-    c.dt_obs = 3600   
-    return c 
-
-if __name__ == "__main__":
-    run_SEB_firn()
+# if __name__ == "__main__":
+#     run_SEB_firn()
 
 
     

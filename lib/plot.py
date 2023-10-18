@@ -299,7 +299,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         if count == 6:
             ax[0].set_title(c.station)
             plt.savefig(
-                c.OutputFolder + "/" + c.RunName + "/" + "summary_" + str(count_fig),
+                c.output_path + "/" + c.RunName + "/" + "summary_" + str(count_fig),
                 bbox_inches="tight",
             )
             count_fig = count_fig + 1
@@ -314,6 +314,6 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         ax[0].set_title(c.station)
         
         plt.savefig(
-            c.OutputFolder + "/" + c.RunName + "/" + filetag + "_" + str(count_fig),
+            c.output_path + "/" + c.RunName + "/" + filetag + "_" + str(count_fig),
             bbox_inches="tight",
         )

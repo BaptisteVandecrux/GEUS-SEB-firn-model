@@ -24,6 +24,7 @@ def IniVar(time, c):
     df_ini = InitializationSubsurface(c)
 
     rhofirn = np.empty((c.num_lay, len(time)), dtype="float64")
+    rho = np.empty((c.num_lay, len(time)), dtype="float64")
     snowc = np.empty((c.num_lay, len(time)), dtype="float64")
     snic = np.empty((c.num_lay, len(time)), dtype="float64")
     slwc = np.empty((c.num_lay, len(time)), dtype="float64")
@@ -35,12 +36,13 @@ def IniVar(time, c):
     zrfrz = np.empty((c.num_lay, len(time)), dtype="float64")
     zsupimp = np.empty((c.num_lay, len(time)), dtype="float64")
 
-    ts = np.empty((len(time)), dtype="float64")
+    Tsurf = np.empty((len(time)), dtype="float64")
     zrogl = np.empty((len(time)), dtype="float64")
     pgrndcapc = np.empty((len(time)), dtype="float64")
     pgrndhflx = np.empty((len(time)), dtype="float64")
     dH_comp = np.empty((len(time)), dtype="float64")
     snowbkt = np.empty((len(time)), dtype="float64")
+    snowthick = np.empty((len(time)), dtype="float64")
 
     # first time step
     rhofirn[:, -1] = df_ini.rhofirn
@@ -50,8 +52,12 @@ def IniVar(time, c):
     tsoil[:, -1] = df_ini.temp_degC
     grndc[:, -1] = tsoil[:, -1]
     snowbkt[-1] = 0
+    snowthick[-1] = c.snowthick_ini
+    Tsurf[-1] = 263
+
     return (
         rhofirn,
+        rho,
         snowc,
         snic,
         slwc,
@@ -62,21 +68,15 @@ def IniVar(time, c):
         compaction,
         zrfrz,
         zsupimp,
-        ts,
+        Tsurf,
         zrogl,
         pgrndcapc,
         pgrndhflx,
         dH_comp,
         snowbkt,
+        snowthick
     )
 
-# Load parameters and paths from json-file
-# Change in parameters.json if using different path or weather station
-# Returns dictionary with pathnames
-def load_json():
-    with open("parameters.json") as parameter_file:
-        parameters = load(parameter_file)
-    return parameters
 
 def ImportConst(ElevGrad:float=0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
@@ -88,17 +88,13 @@ def ImportConst(ElevGrad:float=0.1):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
 
-    # Read path for constants inputs
-    parameters = load_json()
-    constants_dict = parameters['constants']
-    const_py_path, const_sim_path, const_subsurf_path = (
-        constants_dict['const_py']['path'], 
-        constants_dict['const_sim']['path'], 
-        constants_dict['const_subsurf']['path'] 
-    )
+
+    const_phy_path = "input/constants/const_phy.csv"
+    const_sim_path = "input/constants/const_sim.csv"
+    const_subsurf_path = "input/constants/const_subsurf.csv"
 
     # Load dataframes with constants and create c containing all
-    df1, df2, df3 = (pd.read_csv(const_py_path, sep=";", header=None),
+    df1, df2, df3 = (pd.read_csv(const_phy_path, sep=";", header=None),
                      pd.read_csv(const_sim_path, sep=";", header=None),
                      pd.read_csv(const_subsurf_path, sep=";", header=None)
     )
@@ -128,14 +124,9 @@ def InitializationSubsurface(
     # - density profile
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
-  
-    # Read path for initial state inputs
-    parameters = load_json()
-    initial_state_dict = parameters['initial_state']
-    initial_state_path =  initial_state_dict['initial_state_folder_path']
 
     # Initial density profile
-    filename = initial_state_path + c.station + "_initial_density.csv"
+    filename = c.initial_state_folder_path + c.station + "_initial_density.csv"
 
     df_ini_dens = pd.read_csv(filename, sep=";")
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
@@ -149,8 +140,7 @@ def InitializationSubsurface(
     df_ini_dens["depth_weq"] = np.cumsum(df_ini_dens["thickness_mweq"])
     df_ini_dens = df_ini_dens.set_index("depth_weq")
 
-    #NumLayer = c.z_max / c.dz_ice
-    NumLayer = 200
+    NumLayer = c.num_lay
 
     depth_mod_weq = np.insert(
         np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0
@@ -191,11 +181,6 @@ def InitializationSubsurface(
         .values
     )
 
-    # df_mod['density_kgm3'] = df_mod['density_kgm3'].interpolate().values
-    # df_mod['density_kgm3'] = df_mod['density_kgm3'].fillna(method = 'bfill').values
-
-    # df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
-
     if (
         df_mod["density_kgm3"].last_valid_index()
         < df_mod["density_kgm3"].index.values[-1]
@@ -227,15 +212,10 @@ def InitializationSubsurface(
     df_mod["snic"] = 0
 
     # Initial temperature profile
-    filename = initial_state_path + c.station + "_initial_temperature.csv"
+    filename = c.initial_state_folder_path + c.station + "_initial_temperature.csv"
 
     df_ini_temp = pd.read_csv(filename, sep=";")
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m >= 0, :]
-    # df_ini_temp = df_ini_temp.loc[df_ini_temp.temperature_degC.notnull(),:]
-    # if df_ini_temp.depth_m.min() != 0:
-    #     depth = [0; depth];
-    #     oldtemp = [Tsurf_ini - c.T_0; oldtemp];
-
 
     if df_ini_temp.depth_m.max() < df_mod.depth_m.max():
         tmp = df_ini_temp.iloc[-1, :].copy()
@@ -248,8 +228,7 @@ def InitializationSubsurface(
     df_mod["temp_degC"] = df_mod["temp_degC"].fillna(method="bfill").values + c.T_0
 
     # Initial grain size
-    grain_size_path = initial_state_dict['grain_size_path']
-    filename = initial_state_path + grain_size_path
+    filename = c.initial_state_folder_path + 'all_sites_initial_grain_size.csv'
 
     df_ini_gs = pd.read_csv(filename, sep=";")
     df_ini_gs = df_ini_gs.set_index("depth_m")
