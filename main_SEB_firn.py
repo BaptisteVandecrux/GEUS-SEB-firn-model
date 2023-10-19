@@ -27,7 +27,8 @@ c = ImportConst()
 
 c.station = 'KAN_U'
 
-c.surface_input_path = "./input/weather data/data_"+c.station+"_combined_hour.txt"
+c.surface_input_path = "./input/weather data/data_KAN_U_2009-2019.txt"
+
 c.surface_input_driver = "AWS_old" 
 # c.surface_input_driver = "AWS_new" 
 # c.surface_input_driver = "CARRA" 
@@ -40,7 +41,20 @@ c.num_lay = 100
 df_in = io.load_surface_input_data(c.surface_input_path, driver='AWS_old')
 
 df_in = df_in[:17520]
-
+# #%%
+# for var in ['AirPressurehPa',
+#        'AirPressurehPa_Origin', 'AirTemperature1C', 'AirTemperature1C_Origin',
+#        'AirTemperature2C', 'AirTemperature2C_Origin', 'RelativeHumidity1',
+#        'RelativeHumidity1_Origin', 'RelativeHumidity2',
+#        'RelativeHumidity2_Origin', 'WindSpeed1ms', 'WindSpeed1ms_Origin',
+#        'WindSpeed2ms', 'WindSpeed2ms_Origin', 'WindDirection1d',
+#        'WindDirection2d', 'ShortwaveRadiationDownWm2',
+#        'ShortwaveRadiationDownWm2_Origin', 'ShortwaveRadiationUpWm2',
+#        'ShortwaveRadiationUpWm2_Origin', 'Albedo', 'LongwaveRadiationDownWm2',
+#        'LongwaveRadiationDownWm2_Origin', 'LongwaveRadiationUpWm2',
+#        'LongwaveRadiationUpWm2_Origin', 'HeightSensorBoomm', 'HeightStakesm']:
+#     df_in[[var]].plot(marker='o')
+# #%%
 print('start/end of input file', df_in.index[0], df_in.index[-1])
 # DataFrame for the surface is created, indexed with time from df_aws
 df_out = pd.DataFrame()

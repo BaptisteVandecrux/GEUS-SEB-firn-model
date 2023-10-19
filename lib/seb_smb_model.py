@@ -371,12 +371,12 @@ def IniRhoSnow(T, WS, c: Struct):
 def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     time = weather_df.index.values
 
-    T = weather_df.AirTemperature1C.values + 273.15
-    z_T = weather_df.HeightTemperature1m.values
-    RH = weather_df.RelativeHumidity1.values
-    z_RH = weather_df.HeightHumidity1m.values
-    WS = weather_df.WindSpeed1ms.values
-    z_WS = weather_df.HeightWindSpeed1m.values
+    T = weather_df.AirTemperature2C.values + 273.15
+    z_T = weather_df.HeightTemperature2m.values
+    RH = weather_df.RelativeHumidity2.values
+    z_RH = weather_df.HeightHumidity2m.values
+    WS = weather_df.WindSpeed2ms.values
+    z_WS = weather_df.HeightWindSpeed2m.values
     pres = weather_df.AirPressurehPa.values
     SRin = weather_df.ShortwaveRadiationDownWm2.values
     SRout = weather_df.ShortwaveRadiationUpWm2.values
@@ -618,26 +618,35 @@ def SurfEnergyBudget(
 
 
 def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
-    # SRbalance: Calculates the amount of Shortwave Radiation that is
-    # penetrating at each layer (SRnet).
-    # uses it to warm each layer and eventually calculates the melt that is
-    # produced by this warming
-    #
-    # Author: Dirk Van As (dva@geus.dk) & Robert S. Fausto (rsf@geus.dk)
-    # translated to python by Baptiste Vandecrux (bav@geus.dk)
-    # ==========================================================================
-    # extinction coefficient of ice 0.6 to 1.5 m-1
-    # extinction coefficient of snow 4 to 40 m-1
-    # Greufell and Maykut, 1977, Journal of Glaciology, Vol. 18, No. 80, 1977
+    '''
+    SRbalance: Calculates the amount of Shortwave Radiation that is
+    penetrating at each layer (SRnet). Uses it to warm each layer and 
+    eventually calculates the melt that is produced by this warming
+    
+    Inputs:
+          SRnet_surf      SRin-SRout
+          ind_ice         index of first ice layer underlying the snowpack
+          tickness_m      vector of layer thicknesses in meter
+          T_ice           vector of snow/ice temperature
+          rho             vector of bulk density
+          c               structure with all constants
+    
+    Author: Dirk Van As (dva@geus.dk) & Robert S. Fausto (rsf@geus.dk)
+    translated to python by Baptiste Vandecrux (bav@geus.dk)
+    ==========================================================================
+    extinction coefficient of ice 0.6 to 1.5 m-1
+    extinction coefficient of snow 4 to 40 m-1
+    Greufell and Maykut, 1977, Journal of Glaciology, Vol. 18, No. 80, 1977
 
-    # radiation absorption in snow
-    # SRnet(snow_layer) = (SRin - SRout)
-    #     *exp(-ext_snow*depth(snow_layer))
-    #
-    # radiation absorption in ice layers underneath the snowpack
-    #  SRnet(ice_layer) = (SRin-SRout).*
-    #         exp(-ext_snow*snowthick).*
-    #         exp(-ext_ice*(depth(ice_layer) - snowthick))
+    radiation absorption in snow
+    SRnet(snow_layer) = (SRin - SRout)
+        *exp(-ext_snow*depth(snow_layer))
+    
+    radiation absorption in ice layers underneath the snowpack
+      SRnet(ice_layer) = (SRin-SRout).*
+            exp(-ext_snow*snowthick).*
+            exp(-ext_ice*(depth(ice_layer) - snowthick))
+    '''
     SRnet = np.empty_like(T_ice)
     depth_m = np.cumsum(thickness_m, 0)
     
@@ -675,87 +684,6 @@ def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
 
     # Reduce sub-surface density due to melt? Will most likely cause model instability
     return SRnet, T_ice, meltflux_internal_sum
-
-
-# def SRbalance (SRout, SRin, psnowc, psnic, pslwc, prhofirn, psnowbkt, T_ice, rho,  k, c):
-#     # SRbalance: Calculates the amount of Shortwave Radiation that is
-#     # penetrating at each layer (SRnet).
-#     # uses it to warm each layer and eventually calculates the melt that is
-#     # produced by this warming
-#     #
-#     # Author: Dirk Van As (dva@geus.dk) & Robert S. Fausto (rsf@geus.dk)
-#     # translated to python by Baptiste Vandecrux (bav@geus.dk)
-#     # ==========================================================================
-#     # extinction coefficient of ice 0.6 to 1.5 m-1
-#     # extinction coefficient of snow 4 to 40 m-1
-#     # Greufell and Maykut, 1977, Journal of Glaciology, Vol. 18, No. 80, 1977
-
-#     # radiation absorption in snow
-#     # SRnet(snow_layer) = (SRin - SRout)*np.exp(-ext_snow*depth(snow_layer))
-#     #
-#     # radiation absorption in ice layers underneath the snowpack
-#     # SRnet(ice_layer) = (SRin-SRout)* np.exp(-ext_snow*snowthick)*np.exp(-ext_ice*(depth(ice_layer) - snowthick))
-
-#     thickness_m = psnowc * (c.rho_water / prhofirn)+ psnic * (c.rho_water / c.rho_ice)
-#     depth_m = np.cumsum(thickness_m, 0)
-#     rho_bulk = (psnowc+psnic+pslwc)*c.rho_water/thickness_m
-
-#     # Step 1/*: Update snowthickness
-#     z_icehorizon = np.argwhere(rho_bulk>830)
-#     if len(z_icehorizon)==0:
-#         z_icehorizon = len(rho_bulk)
-#     if z_icehorizon == 0:
-#         snowthick = psnowbkt*c.rho_water/315
-#     else:
-#         snowthick = psnowbkt*c.rho_water/315 + depth_m[z_icehorizon]
-
-#     #radiation absorption in snow
-#     SRnet = np.empty_like(T_ice, dtype='float32')
-#     SRnet[:z_icehorizon] = (SRin[k] - SRout[k]) * np.exp(-c.ext_snow * thickness_m[:z_icehorizon])
-
-#     #radiation absorption in underlying ice
-#     if z_icehorizon == 0:
-#         SRnet[(z_icehorizon+1):c.z_ice_max+1] = \
-#             (SRin[k]-SRout[k])* np.exp(-c.ext_snow*snowthick[k]) \
-#                 * np.exp(-c.ext_ice * (np.arrange(z_icehorizon+2, c.z_ice_max+1) * c.dz_ice - snowthick[k]))
-#     elif z_icehorizon < len(SRnet):
-#         SRnet[(z_icehorizon+1):c.z_ice_max+1] = \
-#             (SRin[k]-SRout[k])* np.exp(-c.ext_snow*snowthick[k]) \
-#                 * np.exp(-c.ext_ice * (np.arrange(z_icehorizon+2, c.z_ice_max+1) * c.dz_ice - snowthick[k]))
-
-#     # specific heat of ice
-#     # (perhaps a slight overestimation for near-melt ice temperatures (max 48 J/kg/K))
-#     if k==0:
-#         c_i = 152.456 + 7.122 * T_ice[:,0]
-#         # snow & ice temperature rise due to shortwave radiation absorption
-#     else:
-#         # Specific heat of ice (a slight overestimation for near-melt T (max 48 J kg-1 K-1))
-#         c_i = 152.456 + 7.122 * T_ice[:, k-1]
-
-#         T_ice[:c.z_ice_max, k] = T_ice[:c.z_ice_max, k-1] \
-#  + c.dt_obs / c.dev / rho[:c.z_ice_max, k] / c_i[:c.z_ice_max] \
-#                 * (SRnet[:c.z_ice_max] - SRnet[1:(c.z_ice_max+1)]) / c.dz_ice
-
-#         # a=(SRnet[:c.z_ice_max]-SRnet(2:(c.z_ice_max+1))) / c.dz_ice
-#         T_ice[c.z_ice_max+1, k] = T_ice[c.z_ice_max+1,1]
-
-#     # finding where/how much melt occurs
-#     subsurfmelt = (T_ice[:, k] > c.T_0)
-#     nosubsurfmelt = (T_ice[:, k] <= c.T_0)
-#     dT_ice = T_ice[:, k] - c.T_0
-#     dT_ice[nosubsurfmelt] = 0
-
-#     meltflux_internal_temp = rho[:, k] * c_i * dT_ice / c.dt_obs * c.dev * c.dz_ice
-#     meltflux_internal = np.sum(meltflux_internal_temp[:c.z_ice_max])
-
-#     dH_melt_internal = -c_i * dT_ice / c.L_fus * c.dz_ice
-#     dH_melt_internal[0] = 0
-
-#     if np.sum(subsurfmelt) > 0:
-#         T_ice[subsurfmelt, k] = c.T_0 # removing non-freezing temperatures
-
-#     # Reduce sub-surface density due to melt? Will most likely cause model instability
-#     return SRout, SRnet, T_ice, meltflux_internal, dH_melt_internal
 
 
 def RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
