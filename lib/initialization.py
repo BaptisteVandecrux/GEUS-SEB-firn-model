@@ -6,11 +6,13 @@
 #     attr2 = "dog"
 
 #     # A sample method
+import matplotlib.pyplot as plt
 
 import pandas as pd
 import numpy as np
 #import matplotlib.pyplot as plt
 from json import load
+import os
 
 class Struct:
     def __init__(self, **entries):
@@ -127,6 +129,9 @@ def InitializationSubsurface(
 
     # Initial density profile
     filename = c.initial_state_folder_path + c.station + "_initial_density.csv"
+    if not os.path.isfile(filename):
+        print('Did not find initial density profile. Using "ablation_initial_density.csv".')
+        filename = c.initial_state_folder_path + "ablation_initial_density.csv"
 
     df_ini_dens = pd.read_csv(filename, sep=";")
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
@@ -213,7 +218,10 @@ def InitializationSubsurface(
 
     # Initial temperature profile
     filename = c.initial_state_folder_path + c.station + "_initial_temperature.csv"
-
+    if not os.path.isfile(filename):
+        print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
+        filename = c.initial_state_folder_path + "ablation_initial_temperature.csv"
+        
     df_ini_temp = pd.read_csv(filename, sep=";")
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m >= 0, :]
 
@@ -246,34 +254,34 @@ def InitializationSubsurface(
     # Initial water content
     df_mod["slwc"] = 0
 
-    # if c.verbose == 1:
-    #     fig, ax = plt.subplots(1, 4, sharey=True)
-    #     ax = ax.flatten()
-    #     ax[0].step(
-    #         df_mod.density_kgm3, -df_mod.depth_m, where="pre", label="interpolated"
-    #     )
-    #     ax[0].step(
-    #         df_ini_dens.density_kgm3,
-    #         -df_ini_dens.depth_m,
-    #         where="pre",
-    #         label="original",
-    #     )
-    #     ax[0].set_xlabel("density_kgm3")
-    #     ax[1].step(
-    #         df_mod.temp_degC - c.T_0, -df_mod.depth_m, where="pre", label="interpolated"
-    #     )
-    #     ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.depth_m, label="original")
-    #     ax[1].set_xlabel("temp_degC")
-    #     ax[2].step(
-    #         df_mod.grain_size_mm, -df_mod.depth_m, where="pre", label="interpolated"
-    #     )
-    #     ax[2].step(
-    #         df_ini_gs.grain_size_mm, -df_ini_gs.index, where="pre", label="original"
-    #     )
-    #     ax[2].set_xlabel("grain_size_mm")
-    #     ax[2].legend()
-    #     ax[3].step(df_mod.slwc, -df_mod.depth_m, where="pre", label="interpolated")
-    #     ax[3].set_xlabel("slwc")
+    if c.verbose == 1:
+        fig, ax = plt.subplots(1, 4, sharey=True)
+        ax = ax.flatten()
+        ax[0].step(
+            df_mod.density_kgm3, -df_mod.depth_m, where="pre", label="interpolated"
+        )
+        ax[0].step(
+            df_ini_dens.density_kgm3,
+            -df_ini_dens.depth_m,
+            where="pre",
+            label="original",
+        )
+        ax[0].set_xlabel("density_kgm3")
+        ax[1].step(
+            df_mod.temp_degC - c.T_0, -df_mod.depth_m, where="pre", label="interpolated"
+        )
+        ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.depth_m, label="original")
+        ax[1].set_xlabel("temp_degC")
+        ax[2].step(
+            df_mod.grain_size_mm, -df_mod.depth_m, where="pre", label="interpolated"
+        )
+        ax[2].step(
+            df_ini_gs.grain_size_mm, -df_ini_gs.index, where="pre", label="original"
+        )
+        ax[2].set_xlabel("grain_size_mm")
+        ax[2].legend()
+        ax[3].step(df_mod.slwc, -df_mod.depth_m, where="pre", label="interpolated")
+        ax[3].set_xlabel("slwc")
 
     return df_mod
 

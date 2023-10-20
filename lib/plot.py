@@ -20,130 +20,60 @@ import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-
 def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
+    print('plotting',var_name, 'from',run_name)
     filename = "Output/" + run_name + "/" + site + "_" + var_name + ".nc"
-
-    ds = nc.Dataset(filename)
-
-    time_org = np.asarray(ds["time"][:])
-    time = np.datetime64("1900-01-01T00") + np.round(
-        (time_org - 1) * 24 * 3600
-    ) * np.timedelta64(1, "s")
-
-    depth = np.asarray(ds["depth"][:])
-
-    if ~zero_surf:
-        surface_height = -depth[-1, :] + depth[-1, 0]
-        depth = depth + surface_height
-
-    var_array = np.asarray(ds[var_name][:])
-    if var_name == "slwc":
-        var_array = var_array * 1000 / depth
-    # now in mm / m3
-
-    depth = np.concatenate((depth[:1, :] * 0, depth), axis=0)
-    depth = np.concatenate((depth, depth[:, -1:]), axis=1)
-
-    time = np.concatenate((time, time[-1:]))
-
-    time_grid = np.expand_dims(time, 0)
-    time_grid = np.repeat(time_grid, depth.shape[0], axis=0)
-
-    myFmt = mdates.DateFormatter("%Y-%m-%d")
-
-    label_list = dict(
-        slwc="Liquid water content (mm m$^{-3}$)",
-        density_bulk="Bulk density (kg m$^{-3}$)",
-        rhofirn="Firn density (kg m$^{-3}$)",
-        T_ice="Subsurface temperature (K)",
-    )
-
-    cmap_list = dict(
-        slwc="gist_ncar_r", density_bulk="Blues", rhofirn="Blues", T_ice="magma"
-    )
-
-    fig, ax = plt.subplots(1, 1, figsize=(15, 30))
-    plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
-    count = 0
-    fig.suptitle(site)
-
-    # plotting firn model
-    if var_name == 'T_ice':
-        im = ax.pcolormesh(
-        time_grid[:, 0::6],
-        depth[:, 0::6],
-        var_array[:, 0::6][:, :-1], 
-        cmap=cmap_list[var_name],
-        # vmin=np.percentile(var_array, 5),
-        # vmax=np.percentile(var_array, 95),
-        vmin=250,
-        vmax=273.15,
-    )
-    else:
-        im = ax.pcolormesh(
-            time_grid[:, 0::6],
-            depth[:, 0::6],
-            var_array[:, 0::6][:, :-1], 
-            cmap=cmap_list[var_name],
-            vmin=np.percentile(var_array, 5),
-            vmax=np.percentile(var_array, 95),
-        )
+    ds = xr.open_dataset(filename).transpose()
+    ds = ds.resample(time='6H').nearest()
+    
     if not zero_surf:
-        ax.plot(time[0:len(surface_height):6], surface_height[0::6], linewidth=2, color="k")
-    plt.colorbar(im, label=label_list[var_name], ax=ax)
-    if len(ylim) > 0: 
-        ax.set_ylim(ylim)
-    else:
-        ax.invert_yaxis()
-
-    ax.xaxis.set_major_formatter(myFmt)
+        ds['surface_height'] = -ds.depth.isel(level=-1) + ds.depth.isel(level=-1).isel(time=0)
+        ds['depth'] = ds.depth + ds.surface_height
+    
+    if var_name == "slwc":
+        # change unit to mm / m3
+        ds[var_name] = ds[var_name] * 1000 / ds.depth
+    
+    # default plot infos
+    label = var_name
+    cmap = 'magma'
+    vmin = np.percentile(ds[var_name], 5)
+    vmax = np.percentile(ds[var_name], 95)
+            
+    # updating for pre-set values
+    plot_info = pd.read_csv('lib/plot_info.csv', skipinitialspace=True)
+    if var_name in plot_info.variable_name.to_list():
+        plot_info = plot_info.set_index('variable_name')
+        label = plot_info.loc[var_name, 'label']
+        cmap = plot_info.loc[var_name, 'cmap']
+        if ~np.isnan(plot_info.loc[var_name].vmin):
+            vmin = plot_info.loc[var_name, 'vmin']
+            vmax = plot_info.loc[var_name, 'vmax']
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
+    fig.suptitle(site)
+    
+    im = ax.pcolormesh(
+                   ds.time.expand_dims(dim={"level": ds.level.shape[0]+1}).transpose(), 
+                   np.hstack([ds.surface_height.values.reshape([-1,1]),
+                                  ds.depth.values]),
+                   ds[var_name].isel(time=slice(1,None)),
+                   shading='flat',
+                   cmap = cmap, vmin=vmin, vmax=vmax
+                   )
+    
+    if not zero_surf:
+        ax.plot(ds.time, ds.surface_height, linewidth=2, color="k")
+        
+    plt.colorbar(im, label=label, ax=ax)
+    ax.invert_yaxis()
+    if ylim:
+        if len(ylim)==1: ax.set_ylim(ylim, ax.get_ylim()[1])
+        if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
-
-    fig.savefig("Output/" + run_name + "/" + site + "_" + var_name + ".png")
+    
+    fig.savefig("output/" + run_name + "/" + site + "_" + var_name + ".png")
     return fig, ax
-
-
-def track_horizon(time, H_surf, depth_act, compaction, date_start, depth_start, step=1):
-    ind_start = (np.abs(time - date_start)).argmin()
-
-    length_out = len(time)
-    depth_hor = np.empty(length_out) * np.nan
-    depth_hor[ind_start] = depth_start
-
-    for i in range(ind_start + step, len(time), step):
-        depth_hor[i] = max(0, depth_hor[i - step] + (H_surf[i] - H_surf[i - step]))
-        depth_mod = depth_act[:, i]
-        comp_mod = compaction[:, i] * step
-
-        # compaction in all layers below the horizon
-        ind_next = int(
-            interp1d(
-                np.insert(depth_mod, 0, 0), np.arange(len(depth_mod) + 1), kind="next"
-            )(depth_hor[i])
-        )
-        comp_tot = np.sum(comp_mod[ind_next:])
-
-        # plus compaction within the layer where the horizon is
-        comp = (
-            (depth_mod[ind_next] - depth_hor[i])
-            / (depth_mod[ind_next] - depth_mod[ind_next - 1])
-            * comp_mod[ind_next - 1]
-        )
-
-        comp_tot = comp_tot + comp
-
-        depth_hor[i] = depth_hor[i] + comp_tot
-    # interpolating between the steps
-    if np.sum(np.isnan(depth_hor)) > 0:
-        depth_hor[np.isnan(depth_hor)] = interp1d(
-            np.argwhere(~np.isnan(depth_hor)).transpose()[0],
-            depth_hor[~np.isnan(depth_hor)],
-            kind="linear",
-            fill_value="extrapolate",
-        )(np.argwhere(np.isnan(depth_hor)).transpose()[0])
-        depth_hor[:ind_start] = np.nan
-    return depth_hor
 
 
 def evaluate_compaction(site, run_name):
@@ -258,7 +188,7 @@ def evaluate_compaction(site, run_name):
 
 def plot_summary(df, c, filetag="summary", var_list=None):
     def new_fig():
-        fig, ax = plt.subplots(6, 1, sharex=True, figsize=(15, 10))
+        fig, ax = plt.subplots(7, 1, sharex=True, figsize=(15, 10))
         plt.subplots_adjust(
             left=0.1, right=0.9, top=0.97, bottom=0.1, wspace=0.2, hspace=0.05
         )
@@ -296,7 +226,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
 
         count = count + 1
 
-        if count == 6:
+        if count == len(ax):
             ax[0].set_title(c.station)
             plt.savefig(
                 c.output_path + "/" + c.RunName + "/" + "summary_" + str(count_fig),

@@ -16,3 +16,4 @@ ipython_config.py
 
 # pyenv
 .python-version
+input/weather data/data_KAN_L_combined_hour.txt

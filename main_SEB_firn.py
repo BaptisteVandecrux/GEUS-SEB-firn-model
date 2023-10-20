@@ -25,9 +25,10 @@ print('start processing')
 # importing standard values for constants
 c = ImportConst()
 
-c.station = 'KAN_U'
-
-c.surface_input_path = "./input/weather data/data_KAN_U_2009-2019.txt"
+# c.station = 'KAN_U'
+# c.surface_input_path = "./input/weather data/data_KAN_U_2009-2019.txt"
+c.station = 'KAN_L'
+c.surface_input_path = "./input/weather data/data_"+c.station+"_combined_hour.txt"
 
 c.surface_input_driver = "AWS_old" 
 # c.surface_input_driver = "AWS_new" 
@@ -40,21 +41,8 @@ c.num_lay = 100
 
 df_in = io.load_surface_input_data(c.surface_input_path, driver='AWS_old')
 
-df_in = df_in[:17520]
-# #%%
-# for var in ['AirPressurehPa',
-#        'AirPressurehPa_Origin', 'AirTemperature1C', 'AirTemperature1C_Origin',
-#        'AirTemperature2C', 'AirTemperature2C_Origin', 'RelativeHumidity1',
-#        'RelativeHumidity1_Origin', 'RelativeHumidity2',
-#        'RelativeHumidity2_Origin', 'WindSpeed1ms', 'WindSpeed1ms_Origin',
-#        'WindSpeed2ms', 'WindSpeed2ms_Origin', 'WindDirection1d',
-#        'WindDirection2d', 'ShortwaveRadiationDownWm2',
-#        'ShortwaveRadiationDownWm2_Origin', 'ShortwaveRadiationUpWm2',
-#        'ShortwaveRadiationUpWm2_Origin', 'Albedo', 'LongwaveRadiationDownWm2',
-#        'LongwaveRadiationDownWm2_Origin', 'LongwaveRadiationUpWm2',
-#        'LongwaveRadiationUpWm2_Origin', 'HeightSensorBoomm', 'HeightStakesm']:
-#     df_in[[var]].plot(marker='o')
-# #%%
+# df_in = df_in[:17520]
+
 print('start/end of input file', df_in.index[0], df_in.index[-1])
 # DataFrame for the surface is created, indexed with time from df_aws
 df_out = pd.DataFrame()
@@ -97,7 +85,7 @@ start_time = time.time()
     compaction
 ) = HHsubsurf(df_in, c)
 
-print('HHsubsurf took %0.03f sec'%(time.time() -start_time))
+print('\nHHsubsurf took %0.03f sec'%(time.time() -start_time))
 start_time = time.time()
 
 thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
@@ -137,16 +125,20 @@ start_time = time.time()
 plt.close("all")
 #lpl.plot_summary(df_in, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
 lpl.plot_summary(df_out, c, 'SEB_output')
-lpl.plot_var(c.station, c.RunName, "slwc", ylim=(10, -5), zero_surf=False)
-lpl.plot_var(c.station, c.RunName, "T_ice", ylim=(10, -5), zero_surf=False)
-lpl.plot_var(c.station, c.RunName, "density_bulk", ylim=(10, -5), zero_surf=False)
+for var in ['slwc','T_ice','density_bulk']:
+    lpl.plot_var(c.station, c.RunName, var, ylim=(10, -5), zero_surf=False)
 
+# LR modelled vs obs
 plt.figure()
 plt.plot(df_out["LRout_mdl"], 
          df_in.LongwaveRadiationUpWm2,
          marker='.',ls='None')
-# melt_mweq_cum = df_out["melt_mweq"].cumsum()
-# print("Cumulative sum of melt:",melt_mweq_cum[-1], " mweq")
+
+# LR modelled vs obs
+plt.figure()
+plt.plot(df_out.index, -depth_act[-1,0] + depth_act[-1,:])
+plt.plot(df_in.index, df_in.SurfaceHeightm)
+
 print('plotting took %0.03f sec'%(time.time() -start_time))
 start_time = time.time()
 
