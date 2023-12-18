@@ -143,6 +143,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         # Step 1/*: Initiate surface variables from previous time step. 
         # The value for k=0 was placed at the end of the array in IniVar.
         snowthick[k] = snowthick[k - 1]
+        # print(snowthick[k])
         Tsurf[k] = Tsurf[k - 1]
         snowbkt[k] = snowbkt[k - 1]
         
@@ -205,7 +206,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             z_0 = c.z0_ice
 
         for findbalance in range(1, c.iter_max_EB):
-            assert ~np.isnan(Tsurf[k]), "nan Tsurf"
+            assert ~np.isnan(Tsurf[k]), "nan Tsurf at step "+str(k)
 
             # SENSIBLE AND LATENT HEAT FLUX
 
@@ -314,11 +315,13 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
         )
 
-        z_icehorizon = int(np.floor(snowthick[k] / c.dz_ice))
-
-        if snowthick[k] < 0:
-            snowthick[k] = 0
-            print("snowthick < 0")
+        snowthick[k] = (
+            snowthick[k] 
+            + (snowfall[k] + sublimation_mweq[k]) / c.rho_fresh_snow * 1000
+            - dH_comp[k] 
+            - melt_mweq[k] / rho[0, k] * 1000
+            )
+        if snowthick[k] < 0: snowthick[k] = 0
                     
     return (
         L,
@@ -350,7 +353,8 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         pgrndhflx,
         dH_comp,
         snowbkt,
-        compaction
+        compaction,
+        snowthick
     )
 
 
@@ -651,18 +655,25 @@ def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
     depth_m = np.cumsum(thickness_m, 0)
     
     # radiation absorption in snow
-    SRnet[:ind_ice] = SRnet_surf * (1 - np.exp(-c.ext_snow * depth_m[:ind_ice]))
-    SRnet[1:ind_ice] = SRnet[1:ind_ice] - SRnet[:(ind_ice-1)]
+    if ind_ice>0:
+        SRnet[:ind_ice] = SRnet_surf * (1 - np.exp(-c.ext_snow * depth_m[:ind_ice]))
+        SRnet[1:ind_ice] = SRnet[1:ind_ice] - SRnet[:(ind_ice-1)]
     
-    # radiation absorption in underlying ice
-    if ind_ice < len(SRnet):
-        SRnet[ind_ice:] = (
-            SRnet_surf
-            * np.exp(-c.ext_snow * depth_m[ind_ice-1])
-            * (1 - np.exp(-c.ext_ice * (depth_m[ind_ice:] - depth_m[ind_ice-1])))
-        )
-        SRnet[(ind_ice+1):] = SRnet[(ind_ice+1):] - SRnet[ind_ice:-1]
+        # radiation absorption in underlying ice
+        if ind_ice < len(SRnet):
+            SRnet[ind_ice:] = (
+                SRnet_surf
+                * np.exp(-c.ext_snow * depth_m[ind_ice-1])
+                * (1 - np.exp(-c.ext_ice * (depth_m[ind_ice:] - depth_m[ind_ice-1])))
+            )
+            SRnet[(ind_ice+1):] = SRnet[(ind_ice+1):] - SRnet[ind_ice:-1]
+    elif ind_ice == 0:
+        # radiation absorption in ice only
+        SRnet = SRnet_surf * (1 - np.exp(-c.ext_ice * depth_m))
+        SRnet[1:] = SRnet[1:] - SRnet[:-1]   
         
+    # print(ind_ice, SRnet[0], SRnet[1])
+   
     # snow & ice temperature rise due to shortwave radiation absorption
     # Specific heat of ice (a slight overestimation for near-melt T (max 48 J kg-1 K-1))
     c_i = 152.456 + 7.122 * T_ice
@@ -688,8 +699,6 @@ def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
 
 def RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
     u_star = c.kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
-
-    print("In RoughSurf")
     # rough surfaces: Smeets & Van den Broeke 2008
     Re = u_star * z_0 / nu
     z_h = z_0 * np.exp(1.5 - 0.2 * np.log(Re) - 0.11 * (np.log(Re)) ** 2)
@@ -784,9 +793,6 @@ def SensLatFluxes_bulk_opt(
     theta_2m = theta
     q_2m = q
     ws_10m = WS
-
-    if not snowthick > 0:
-        print("snowthick less than 0")
 
     if WS > c.WS_lim:
         # Roughness length scales for snow or ice - initial guess

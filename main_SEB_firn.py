@@ -25,30 +25,32 @@ print('start processing')
 # importing standard values for constants
 c = ImportConst()
 
-# c.station = 'KAN_U'
+c.station = 'KAN_M'
 # c.surface_input_path = "./input/weather data/data_KAN_U_2009-2019.txt"
-c.station = 'KAN_L'
-c.surface_input_path = "./input/weather data/data_"+c.station+"_combined_hour.txt"
+# c.station = 'KAN_M'
 
-c.surface_input_driver = "AWS_old" 
-# c.surface_input_driver = "AWS_new" 
-# c.surface_input_driver = "CARRA" 
+# c.surface_input_path = "./input/weather data/data_"+c.station+"_combined_hour.txt"
+# c.surface_input_driver = "AWS_old" 
+
+c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
+c.surface_input_driver = "CARRA" 
 
 # assigning constants specific to this simulation
+c.snowthick_ini = 0.1
 c.z_max = 50
 c.num_lay = 100
 # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
 
-df_in = io.load_surface_input_data(c.surface_input_path, driver='AWS_old')
+df_in = io.load_surface_input_data(c)
 
-# df_in = df_in[:17520]
+df_in = df_in.loc['2007-09-01':,:]
 
 print('start/end of input file', df_in.index[0], df_in.index[-1])
 # DataFrame for the surface is created, indexed with time from df_aws
 df_out = pd.DataFrame()
 df_out["time"] = df_in.index
 df_out = df_out.set_index("time")
-
+# %% 
 print('reading inputs took %0.03f sec'%(time.time() -start_time))
 start_time = time.time()
 # The surface values are received 
@@ -74,7 +76,7 @@ start_time = time.time()
     rhofirn,
     zsupimp,
     dgrain,
-    zrogl,
+    df_out['zrogl'],
     Tsurf,
     grndc,
     grndd,
@@ -82,7 +84,8 @@ start_time = time.time()
     pgrndhflx,
     dH_comp,
     snowbkt,
-    compaction
+    compaction,
+    df_out['snowthick']
 ) = HHsubsurf(df_in, c)
 
 print('\nHHsubsurf took %0.03f sec'%(time.time() -start_time))
@@ -117,6 +120,7 @@ io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
 # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
 # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, RunName)
 # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, RunName)
+df_out['zrfrz_sum'] = zrfrz.sum(axis=0)
 
 print('writing output files took %0.03f sec'%(time.time() -start_time))
 start_time = time.time()
@@ -124,6 +128,7 @@ start_time = time.time()
 # Plot output
 plt.close("all")
 #lpl.plot_summary(df_in, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
+# %%
 lpl.plot_summary(df_out, c, 'SEB_output')
 for var in ['slwc','T_ice','density_bulk']:
     lpl.plot_var(c.station, c.RunName, var, ylim=(10, -5), zero_surf=False)
@@ -134,11 +139,51 @@ plt.plot(df_out["LRout_mdl"],
          df_in.LongwaveRadiationUpWm2,
          marker='.',ls='None')
 
-# LR modelled vs obs
+
+#%%
+plt.figure()
+ax=plt.gca()
+df_out.melt_mweq.cumsum().plot(ax=ax, label='melt')
+df_in.Snowfallmweq.cumsum().plot(ax=ax, label='Snowfall')
+df_out.zrogl.cumsum().plot(ax=ax, label='runoff')
+df_out.zrfrz_sum.cumsum().plot(ax=ax, label='refreezing')
+df_out.snowthick.plot(ax=ax, label='snowthickness')
+plt.legend()
+
+# %% Surface height evaluation
+# if 'SurfaceHeightm' in df_in.columns:
+#     plt.figure()
+#     plt.plot(df_out.index, -depth_act[-1,0] + depth_act[-1,:])
+#     plt.plot(df_in.index, df_in.SurfaceHeightm)
+# else:
+path_aws_l4 = 'C:/Users/bav/OneDrive - Geological survey of Denmark and Greenland/Code/PROMICE/PROMICE-AWS-toolbox/out/L4/'
+df_obs = pd.read_csv(path_aws_l4+c.station+'_L4.csv')
+df_obs.time= pd.to_datetime(df_obs.time)
+df_obs = df_obs.set_index('time')
+
 plt.figure()
 plt.plot(df_out.index, -depth_act[-1,0] + depth_act[-1,:])
-plt.plot(df_in.index, df_in.SurfaceHeightm)
+plt.plot(df_obs.index, df_obs.z_surf_combined)
+plt.ylabel('Surface height (m)')
+plt.title(c.station)
 
+# %% 
+if c.station in ['KAN_M']:
+    file = 'C:/Users/bav/OneDrive - Geological survey of Denmark and Greenland/Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_KAN_M.txt'
+
+    df_sf = pd.read_csv(file,delim_whitespace=True)
+    df_sf[df_sf==-999] = np.nan
+    df_sf['time'] = pd.to_datetime(df_sf[['Year','Month','Day']])
+    df_sf = df_sf.set_index('time')
+    df_sf['SWE_mweq'] =df_sf['SWE(cmWeq)']/100
+
+    plt.figure()
+    ax=plt.gca()
+    df_sf.SWE_mweq.plot(ax=ax, marker='o')
+    (df_in.loc['2018-08-12':'2019-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
+    (df_in.loc['2019-09-01':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
+
+#%%
 print('plotting took %0.03f sec'%(time.time() -start_time))
 start_time = time.time()
 

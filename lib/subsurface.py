@@ -334,7 +334,7 @@ def zsn_condF(prhofirn):
     return 2.22362 * (prhofirn / 1000) ** 1.88
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
     # melting: Transform an amount zsnmel (m eq) of frozen material into liquid
     # water. Starts at the surface and continues downward as long as more
